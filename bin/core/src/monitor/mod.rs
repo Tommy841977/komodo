@@ -1,6 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use async_timing_util::wait_until_timelength;
+use cache::CloneCache;
 use database::mungos::{find::find_collect, mongodb::bson::doc};
 use futures::future::join_all;
 use helpers::insert_stacks_status_unknown;
@@ -21,7 +22,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   config::core_config,
-  helpers::{cache::Cache, periphery_client},
+  helpers::periphery_client,
   monitor::{alert::check_alerts, record::record_server_stats},
   state::{db_client, deployment_status_cache, repo_status_cache},
 };
@@ -122,8 +123,8 @@ async fn refresh_server_cache(ts: i64) {
 /// Makes sure cache for server doesn't update too frequently / simultaneously.
 /// If forced, will still block against simultaneous update.
 fn update_cache_for_server_controller()
--> &'static Cache<String, Arc<Mutex<i64>>> {
-  static CACHE: OnceLock<Cache<String, Arc<Mutex<i64>>>> =
+-> &'static CloneCache<String, Arc<Mutex<i64>>> {
+  static CACHE: OnceLock<CloneCache<String, Arc<Mutex<i64>>>> =
     OnceLock::new();
   CACHE.get_or_init(Default::default)
 }
