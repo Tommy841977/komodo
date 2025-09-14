@@ -2809,6 +2809,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "transport",
  "uuid",
 ]
 
@@ -3647,6 +3648,7 @@ version = "1.19.4"
 dependencies = [
  "anyhow",
  "cache",
+ "futures-util",
  "komodo_client",
  "reqwest",
  "resolver_api",
@@ -3657,7 +3659,9 @@ dependencies = [
  "serror",
  "tokio",
  "tokio-tungstenite 0.27.0",
+ "tokio-util",
  "tracing",
+ "transport",
  "uuid",
 ]
 
@@ -5502,6 +5506,13 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "transport"
+version = "1.19.3"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

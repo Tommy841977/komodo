@@ -21,6 +21,7 @@ environment_file.workspace = true
 environment.workspace = true
 interpolate.workspace = true
 formatting.workspace = true
+transport.workspace = true
 response.workspace = true
 command.workspace = true
 config.workspace = true

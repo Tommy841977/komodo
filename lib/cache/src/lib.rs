@@ -85,12 +85,12 @@ impl<K: PartialEq + Eq + Hash + std::fmt::Debug + Clone, T: Clone>
     cache.values().cloned().collect()
   }
 
-  pub async fn insert<Key>(&self, key: Key, val: T)
+  pub async fn insert<Key>(&self, key: Key, val: T) -> Option<T>
   where
     T: std::fmt::Debug,
     Key: Into<K> + std::fmt::Debug,
   {
-    self.cache.write().await.insert(key.into(), val);
+    self.cache.write().await.insert(key.into(), val)
   }
 
   pub async fn remove(&self, key: &K) -> Option<T> {

@@ -13,10 +13,8 @@ use periphery_client::message::{
 use resolver_api::Resolve;
 use response::JsonBytes;
 use serror::{AddStatusCode, serialize_error_bytes};
-use tokio::sync::{
-  Mutex,
-  mpsc::{Receiver, Sender, channel},
-};
+use tokio::sync::{Mutex, mpsc::Sender};
+use transport::{BufferedReceiver, buffered_channel};
 
 use crate::api::PeripheryRequest;
 
@@ -69,7 +67,7 @@ pub async fn inbound_connection(
         match ws_write.send(msg).await {
           // Clears the stored message from receiver buffer.
           // TODO: Move after response ack from Core.
-          Ok(_) => response_receiver.confirm_receipt(),
+          Ok(_) => response_receiver.clear_buffer(),
           Err(e) => {
             warn!("Failed to send response | {e:?}");
             let _ = ws_write.close().await;
@@ -165,49 +163,11 @@ const RESPONSE_BUFFER_MAX_LEN: usize = 1_024;
 
 /// Must call in startup sequence
 pub fn init_response_channel() {
-  let (response_sender, receiver) =
-    channel::<Vec<u8>>(RESPONSE_BUFFER_MAX_LEN);
+  let (sender, receiver) = buffered_channel(RESPONSE_BUFFER_MAX_LEN);
   RESPONSE_SENDER
-    .set(response_sender)
+    .set(sender)
     .expect("response_sender initialized more than once");
   RESPONSE_RECEIVER
-    .set(Mutex::new(BufferedReceiver::new(receiver)))
+    .set(Mutex::new(receiver))
     .expect("response_receiver initialized more than once");
-}
-
-/// Wrapper around channel receiver to control when
-/// the latest message is dropped,
-/// in case it must be re-transmitted.
-#[derive(Debug)]
-struct BufferedReceiver {
-  receiver: Receiver<Vec<u8>>,
-  buffer: Option<Vec<u8>>,
-}
-
-impl BufferedReceiver {
-  fn new(receiver: Receiver<Vec<u8>>) -> BufferedReceiver {
-    BufferedReceiver {
-      receiver,
-      buffer: None,
-    }
-  }
-
-  /// If 'next: Some(bytes)':
-  ///   - Immediately returns borrow of next.
-  /// Else:
-  ///   - Wait for next item
-  ///   - store in 'next'
-  ///   - return borrow of next.
-  async fn recv(&mut self) -> Option<&[u8]> {
-    if self.buffer.is_none() {
-      self.buffer = Some(self.receiver.recv().await?);
-    }
-    self.buffer.as_deref()
-  }
-
-  /// Clears buffer.
-  /// Should be called after transmission confirmed.
-  fn confirm_receipt(&mut self) {
-    self.buffer = None;
-  }
 }

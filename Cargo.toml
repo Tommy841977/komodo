@@ -26,6 +26,7 @@ environment_file = { path = "lib/environment_file" }
 environment = { path = "lib/environment" }
 interpolate = { path = "lib/interpolate" }
 formatting = { path = "lib/formatting" }
+transport = { path = "lib/transport" }
 database = { path = "lib/database" }
 response = { path = "lib/response" }
 command = { path = "lib/command" }
