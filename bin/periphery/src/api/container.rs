@@ -15,7 +15,7 @@ use crate::{
   docker::{
     docker_client, stats::get_container_stats, stop_container_command,
   },
-  helpers::log_grep,
+  helpers::format_log_grep,
 };
 
 // ======
@@ -67,7 +67,7 @@ impl Resolve<super::Args> for GetContainerLogSearch {
       invert,
       timestamps,
     } = self;
-    let grep = log_grep(&terms, combinator, invert);
+    let grep = format_log_grep(&terms, combinator, invert);
     let timestamps = if timestamps {
       " --timestamps"
     } else {

@@ -9,15 +9,13 @@ use axum_server::tls_rustls::RustlsConfig;
 use config::periphery_config;
 
 mod api;
-mod build;
-mod compose;
 mod config;
 mod docker;
-mod git;
 mod helpers;
-mod ssl;
+mod router;
 mod stats;
 mod terminal;
+mod connection;
 
 async fn app() -> anyhow::Result<()> {
   dotenvy::dotenv().ok();
@@ -34,6 +32,7 @@ async fn app() -> anyhow::Result<()> {
 
   stats::spawn_polling_thread();
   docker::stats::spawn_polling_thread();
+  connection::init_response_channel();
 
   let addr = format!(
     "{}:{}",
@@ -44,15 +43,15 @@ async fn app() -> anyhow::Result<()> {
   let socket_addr = SocketAddr::from_str(&addr)
     .context("failed to parse listen address")?;
 
-  let app =
-    api::router().into_make_service_with_connect_info::<SocketAddr>();
+  let app = router::router()
+    .into_make_service_with_connect_info::<SocketAddr>();
 
   if config.ssl_enabled {
     info!("🔒 Periphery SSL Enabled");
     rustls::crypto::ring::default_provider()
       .install_default()
       .expect("failed to install default rustls CryptoProvider");
-    ssl::ensure_certs().await;
+    helpers::ensure_ssl_certs().await;
     info!("Komodo Periphery starting on https://{}", socket_addr);
     let ssl_config = RustlsConfig::from_pem_file(
       config.ssl_cert_file(),

@@ -20,7 +20,7 @@ use resolver_api::Resolve;
 use crate::{
   config::periphery_config,
   docker::{docker_login, pull_image},
-  helpers::{parse_extra_args, parse_labels},
+  helpers::{format_extra_args, format_labels},
 };
 
 impl Resolve<super::Args> for Deploy {
@@ -145,11 +145,11 @@ fn docker_run_command(
     &environment_vars_from_str(environment)
       .context("Invalid environment")?,
   );
-  let labels = parse_labels(
+  let labels = format_labels(
     &environment_vars_from_str(labels).context("Invalid labels")?,
   );
   let command = parse_command(command);
-  let extra_args = parse_extra_args(extra_args);
+  let extra_args = format_extra_args(extra_args);
   let command = format!(
     "docker run -d --name {name}{ports}{volumes}{network}{restart}{environment}{labels}{extra_args} {image}{command}"
   );

@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use axum::{Router, http::HeaderMap};
+use cache::CloneCache;
 use komodo_client::entities::resource::Resource;
 use tokio::sync::Mutex;
 
-use crate::{helpers::cache::Cache, resource::KomodoResource};
+use crate::resource::KomodoResource;
 
 mod integrations;
 mod resources;
@@ -19,7 +20,7 @@ pub fn router() -> Router {
     .nest("/gitlab", router::router::<gitlab::Gitlab>())
 }
 
-type ListenerLockCache = Cache<String, Arc<Mutex<()>>>;
+type ListenerLockCache = CloneCache<String, Arc<Mutex<()>>>;
 
 /// Implemented for all resources which can recieve webhook.
 trait CustomSecret: KomodoResource {

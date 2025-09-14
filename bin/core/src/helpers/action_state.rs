@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
+use cache::CloneCache;
 use komodo_client::{
   busy::Busy,
   entities::{
@@ -12,20 +13,19 @@ use komodo_client::{
   },
 };
 
-use super::cache::Cache;
-
 #[derive(Default)]
 pub struct ActionStates {
-  pub server: Cache<String, Arc<ActionState<ServerActionState>>>,
-  pub stack: Cache<String, Arc<ActionState<StackActionState>>>,
+  pub server: CloneCache<String, Arc<ActionState<ServerActionState>>>,
+  pub stack: CloneCache<String, Arc<ActionState<StackActionState>>>,
   pub deployment:
-    Cache<String, Arc<ActionState<DeploymentActionState>>>,
-  pub build: Cache<String, Arc<ActionState<BuildActionState>>>,
-  pub repo: Cache<String, Arc<ActionState<RepoActionState>>>,
+    CloneCache<String, Arc<ActionState<DeploymentActionState>>>,
+  pub build: CloneCache<String, Arc<ActionState<BuildActionState>>>,
+  pub repo: CloneCache<String, Arc<ActionState<RepoActionState>>>,
   pub procedure:
-    Cache<String, Arc<ActionState<ProcedureActionState>>>,
-  pub action: Cache<String, Arc<ActionState<ActionActionState>>>,
-  pub sync: Cache<String, Arc<ActionState<ResourceSyncActionState>>>,
+    CloneCache<String, Arc<ActionState<ProcedureActionState>>>,
+  pub action: CloneCache<String, Arc<ActionState<ActionActionState>>>,
+  pub sync:
+    CloneCache<String, Arc<ActionState<ResourceSyncActionState>>>,
 }
 
 /// Need to be able to check "busy" with write lock acquired.

@@ -25,13 +25,13 @@ use resolver_api::Resolve;
 use tokio::fs;
 
 use crate::{
-  build::{
-    image_tags, parse_build_args, parse_secret_args, write_dockerfile,
-  },
   config::periphery_config,
   docker::docker_login,
-  helpers::{parse_extra_args, parse_labels},
+  helpers::{format_extra_args, format_labels},
 };
+
+mod helpers;
+use helpers::*;
 
 impl Resolve<super::Args> for GetDockerfileContentsOnHost {
   #[instrument(name = "GetDockerfileContentsOnHost", level = "debug")]
@@ -283,11 +283,11 @@ impl Resolve<super::Args> for build::Build {
     let command_secret_args =
       parse_secret_args(&secret_args, &build_path).await?;
 
-    let labels = parse_labels(
+    let labels = format_labels(
       &environment_vars_from_str(labels).context("Invalid labels")?,
     );
 
-    let extra_args = parse_extra_args(extra_args);
+    let extra_args = format_extra_args(extra_args);
 
     let buildx = if *use_buildx { " buildx" } else { "" };
 

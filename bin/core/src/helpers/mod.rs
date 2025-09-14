@@ -23,7 +23,6 @@ use crate::{config::core_config, state::db_client};
 pub mod action_state;
 pub mod all_resources;
 pub mod builder;
-pub mod cache;
 pub mod channel;
 pub mod maintenance;
 pub mod matcher;

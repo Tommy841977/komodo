@@ -1,26 +1,53 @@
-use std::{fmt::Write, path::PathBuf};
+use std::{
+  fmt::Write,
+  path::{Path, PathBuf},
+};
 
 use anyhow::{Context, anyhow};
 use command::run_komodo_command;
+use formatting::format_serror;
 use komodo_client::entities::{
-  RepoExecutionArgs, repo::Repo, stack::Stack,
+  FileContents, RepoExecutionArgs,
+  repo::Repo,
+  stack::{Stack, StackRemoteFileContents},
   to_path_compatible_name,
+  update::Log,
 };
 use periphery_client::api::{
   compose::ComposeUpResponse, git::PullOrCloneRepo,
 };
 use resolver_api::Resolve;
+use tokio::fs;
 
-use crate::config::periphery_config;
+use crate::{config::periphery_config, docker::docker_login};
 
-pub mod up;
-pub mod write;
+use super::docker_compose;
 
-pub fn docker_compose() -> &'static str {
-  if periphery_config().legacy_compose_cli {
-    "docker-compose"
-  } else {
-    "docker compose"
+pub async fn maybe_login_registry(
+  stack: &Stack,
+  registry_token: Option<String>,
+  logs: &mut Vec<Log>,
+) {
+  if !stack.config.registry_provider.is_empty()
+    && !stack.config.registry_account.is_empty()
+    && let Err(e) = docker_login(
+      &stack.config.registry_provider,
+      &stack.config.registry_account,
+      registry_token.as_deref(),
+    )
+    .await
+    .with_context(|| {
+      format!(
+        "Domain: '{}' | Account: '{}'",
+        stack.config.registry_provider, stack.config.registry_account
+      )
+    })
+    .context("Failed to login to image registry")
+  {
+    logs.push(Log::error(
+      "Login to Registry",
+      format_serror(&e.into()),
+    ));
   }
 }
 
@@ -53,7 +80,7 @@ pub fn env_file_args(
   Ok(res)
 }
 
-pub async fn down(
+pub async fn compose_down(
   project: &str,
   services: &[String],
   res: &mut ComposeUpResponse,
@@ -140,4 +167,73 @@ pub async fn pull_or_clone_stack(
   .map_err(|e| e.error)?;
 
   Ok(root)
+}
+
+pub async fn validate_files(
+  stack: &Stack,
+  run_directory: &Path,
+  res: &mut ComposeUpResponse,
+) {
+  let file_paths = stack
+    .all_file_dependencies()
+    .into_iter()
+    .map(|file| {
+      (
+        // This will remove any intermediate uneeded '/./' in the path
+        run_directory
+          .join(&file.path)
+          .components()
+          .collect::<PathBuf>(),
+        file,
+      )
+    })
+    .collect::<Vec<_>>();
+
+  // First validate no missing files
+  for (full_path, file) in &file_paths {
+    if !full_path.exists() {
+      res.missing_files.push(file.path.clone());
+    }
+  }
+  if !res.missing_files.is_empty() {
+    res.logs.push(Log::error(
+      "Validate Files",
+      format_serror(
+        &anyhow!(
+          "Missing files: {}", res.missing_files.join(", ")
+        )
+        .context("Ensure the run_directory and all file paths are correct.")
+        .context("A file doesn't exist after writing stack.")
+        .into(),
+      ),
+    ));
+    return;
+  }
+
+  for (full_path, file) in file_paths {
+    let file_contents =
+      match fs::read_to_string(&full_path).await.with_context(|| {
+        format!("Failed to read file contents at {full_path:?}")
+      }) {
+        Ok(res) => res,
+        Err(e) => {
+          let error = format_serror(&e.into());
+          res
+            .logs
+            .push(Log::error("Read Compose File", error.clone()));
+          // This should only happen for repo stacks, ie remote error
+          res.remote_errors.push(FileContents {
+            path: file.path,
+            contents: error,
+          });
+          return;
+        }
+      };
+    res.file_contents.push(StackRemoteFileContents {
+      path: file.path,
+      contents: file_contents,
+      services: file.services,
+      requires: file.requires,
+    });
+  }
 }

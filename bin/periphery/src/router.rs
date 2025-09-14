@@ -9,7 +9,6 @@ use axum::{
   routing::{get, post},
 };
 use derive_variants::ExtractVariant;
-use resolver_api::Resolve;
 use serror::{AddStatusCode, AddStatusCodeError, Json};
 use std::net::{IpAddr, SocketAddr};
 use uuid::Uuid;
@@ -23,21 +22,22 @@ pub fn router() -> Router {
         .route("/", post(handler))
         .layer(middleware::from_fn(guard_request_by_passkey)),
     )
+    .route("/ws", get(crate::connection::inbound_connection))
     .nest(
       "/terminal",
       Router::new()
-        .route("/", get(super::terminal::connect_terminal))
+        .route("/", get(crate::api::terminal::connect_terminal))
         .route(
           "/container",
-          get(super::terminal::connect_container_exec),
+          get(crate::api::terminal::connect_container_exec),
         )
         .nest(
           "/execute",
           Router::new()
-            .route("/", post(super::terminal::execute_terminal))
+            .route("/", post(crate::api::terminal::execute_terminal))
             .route(
               "/container",
-              post(super::terminal::execute_container_exec),
+              post(crate::api::terminal::execute_container_exec),
             )
             .layer(middleware::from_fn(guard_request_by_passkey)),
         ),
@@ -67,16 +67,17 @@ async fn task(
 ) -> serror::Result<axum::response::Response> {
   let variant = request.extract_variant();
 
-  let res = request.resolve(&crate::api::Args).await.map(|res| res.0);
+  // let res = request.resolve(&crate::api::Args).await.map(|res| res.0);
 
-  if let Err(e) = &res {
-    warn!(
-      "request {req_id} | type: {variant:?} | error: {:#}",
-      e.error
-    );
-  }
+  // if let Err(e) = &res {
+  //   warn!(
+  //     "request {req_id} | type: {variant:?} | error: {:#}",
+  //     e.error
+  //   );
+  // }
 
-  res
+  // res
+  todo!()
 }
 
 async fn guard_request_by_passkey(

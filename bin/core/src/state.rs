@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::Context;
 use arc_swap::ArcSwap;
+use cache::CloneCache;
 use database::Client;
 use komodo_client::entities::{
   action::ActionState,
@@ -24,7 +25,6 @@ use crate::{
   config::core_config,
   helpers::{
     action_state::ActionStates, all_resources::AllResourcesById,
-    cache::Cache,
   },
   monitor::{
     CachedDeploymentStatus, CachedRepoStatus, CachedServerStatus,
@@ -46,7 +46,7 @@ pub async fn init_db_client() {
     .await
     .context("failed to initialize database client")
     .unwrap();
-  DB_CLIENT.set(client).expect("db_clint");
+  DB_CLIENT.set(client).expect("db_client initialized more than once");
 }
 
 pub fn jwt_client() -> &'static JwtClient {
@@ -136,7 +136,7 @@ pub fn action_states() -> &'static ActionStates {
 }
 
 /// Cache of ids to status
-pub type DeploymentStatusCache = Cache<
+pub type DeploymentStatusCache = CloneCache<
   String,
   Arc<History<CachedDeploymentStatus, DeploymentState>>,
 >;
@@ -149,7 +149,7 @@ pub fn deployment_status_cache() -> &'static DeploymentStatusCache {
 }
 
 pub type StackStatusCache =
-  Cache<String, Arc<History<CachedStackStatus, StackState>>>;
+  CloneCache<String, Arc<History<CachedStackStatus, StackState>>>;
 
 pub fn stack_status_cache() -> &'static StackStatusCache {
   static STACK_STATUS_CACHE: OnceLock<StackStatusCache> =
@@ -157,7 +157,8 @@ pub fn stack_status_cache() -> &'static StackStatusCache {
   STACK_STATUS_CACHE.get_or_init(Default::default)
 }
 
-pub type ServerStatusCache = Cache<String, Arc<CachedServerStatus>>;
+pub type ServerStatusCache =
+  CloneCache<String, Arc<CachedServerStatus>>;
 
 pub fn server_status_cache() -> &'static ServerStatusCache {
   static SERVER_STATUS_CACHE: OnceLock<ServerStatusCache> =
@@ -165,7 +166,7 @@ pub fn server_status_cache() -> &'static ServerStatusCache {
   SERVER_STATUS_CACHE.get_or_init(Default::default)
 }
 
-pub type RepoStatusCache = Cache<String, Arc<CachedRepoStatus>>;
+pub type RepoStatusCache = CloneCache<String, Arc<CachedRepoStatus>>;
 
 pub fn repo_status_cache() -> &'static RepoStatusCache {
   static REPO_STATUS_CACHE: OnceLock<RepoStatusCache> =
@@ -173,7 +174,7 @@ pub fn repo_status_cache() -> &'static RepoStatusCache {
   REPO_STATUS_CACHE.get_or_init(Default::default)
 }
 
-pub type BuildStateCache = Cache<String, BuildState>;
+pub type BuildStateCache = CloneCache<String, BuildState>;
 
 pub fn build_state_cache() -> &'static BuildStateCache {
   static BUILD_STATE_CACHE: OnceLock<BuildStateCache> =
@@ -181,14 +182,14 @@ pub fn build_state_cache() -> &'static BuildStateCache {
   BUILD_STATE_CACHE.get_or_init(Default::default)
 }
 
-pub type RepoStateCache = Cache<String, RepoState>;
+pub type RepoStateCache = CloneCache<String, RepoState>;
 
 pub fn repo_state_cache() -> &'static RepoStateCache {
   static REPO_STATE_CACHE: OnceLock<RepoStateCache> = OnceLock::new();
   REPO_STATE_CACHE.get_or_init(Default::default)
 }
 
-pub type ProcedureStateCache = Cache<String, ProcedureState>;
+pub type ProcedureStateCache = CloneCache<String, ProcedureState>;
 
 pub fn procedure_state_cache() -> &'static ProcedureStateCache {
   static PROCEDURE_STATE_CACHE: OnceLock<ProcedureStateCache> =
@@ -196,7 +197,7 @@ pub fn procedure_state_cache() -> &'static ProcedureStateCache {
   PROCEDURE_STATE_CACHE.get_or_init(Default::default)
 }
 
-pub type ActionStateCache = Cache<String, ActionState>;
+pub type ActionStateCache = CloneCache<String, ActionState>;
 
 pub fn action_state_cache() -> &'static ActionStateCache {
   static ACTION_STATE_CACHE: OnceLock<ActionStateCache> =

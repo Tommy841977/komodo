@@ -12,10 +12,12 @@ use periphery_client::api::{
   stats::*, terminal::*, volume::*, *,
 };
 use resolver_api::Resolve;
-use response::Response;
+use response::JsonBytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{config::periphery_config, docker::docker_client};
+
+pub mod terminal;
 
 mod build;
 mod compose;
@@ -24,12 +26,8 @@ mod deploy;
 mod git;
 mod image;
 mod network;
-mod router;
 mod stats;
-mod terminal;
 mod volume;
-
-pub use router::router;
 
 pub struct Args;
 
@@ -37,7 +35,7 @@ pub struct Args;
   Serialize, Deserialize, Debug, Clone, Resolve, EnumVariants,
 )]
 #[args(Args)]
-#[response(Response)]
+#[response(JsonBytes)]
 #[error(serror::Error)]
 #[variant_derive(Debug)]
 #[serde(tag = "type", content = "params")]

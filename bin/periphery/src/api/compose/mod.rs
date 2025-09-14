@@ -22,14 +22,22 @@ use std::{borrow::Cow, path::PathBuf};
 use tokio::fs;
 
 use crate::{
-  compose::{
-    docker_compose, env_file_args, pull_or_clone_stack,
-    up::{maybe_login_registry, validate_files},
-    write::write_stack,
-  },
   config::periphery_config,
-  helpers::{log_grep, parse_extra_args},
+  helpers::{format_extra_args, format_log_grep},
 };
+
+mod helpers;
+mod write;
+
+use helpers::*;
+
+fn docker_compose() -> &'static str {
+  if periphery_config().legacy_compose_cli {
+    "docker-compose"
+  } else {
+    "docker compose"
+  }
+}
 
 impl Resolve<super::Args> for ListComposeProjects {
   #[instrument(name = "ComposeInfo", level = "debug", skip_all)]
@@ -128,7 +136,7 @@ impl Resolve<super::Args> for GetComposeLogSearch {
       timestamps,
     } = self;
     let docker_compose = docker_compose();
-    let grep = log_grep(&terms, combinator, invert);
+    let grep = format_log_grep(&terms, combinator, invert);
     let timestamps = if timestamps {
       " --timestamps"
     } else {
@@ -334,7 +342,7 @@ impl Resolve<super::Args> for ComposePull {
       .push_logs(&mut res.logs);
     replacers.extend(interpolator.secret_replacers);
 
-    let (run_directory, env_file_path) = match write_stack(
+    let (run_directory, env_file_path) = match write::stack(
       &stack,
       repo.as_ref(),
       git_token,
@@ -448,7 +456,7 @@ impl Resolve<super::Args> for ComposeUp {
       .push_logs(&mut res.logs);
     replacers.extend(interpolator.secret_replacers);
 
-    let (run_directory, env_file_path) = match write_stack(
+    let (run_directory, env_file_path) = match write::stack(
       &stack,
       repo.as_ref(),
       git_token,
@@ -588,7 +596,7 @@ impl Resolve<super::Args> for ComposeUp {
 
     if stack.config.run_build {
       let build_extra_args =
-        parse_extra_args(&stack.config.build_extra_args);
+        format_extra_args(&stack.config.build_extra_args);
       let command = format!(
         "{docker_compose} -p {project_name} -f {file_args}{env_file_args} build{build_extra_args}{service_args}",
       );
@@ -634,13 +642,13 @@ impl Resolve<super::Args> for ComposeUp {
     {
       // Take down the existing containers.
       // This one tries to use the previously deployed service name, to ensure the right stack is taken down.
-      crate::compose::down(&last_project_name, &services, &mut res)
+      helpers::compose_down(&last_project_name, &services, &mut res)
         .await
         .context("failed to destroy existing containers")?;
     }
 
     // Run compose up
-    let extra_args = parse_extra_args(&stack.config.extra_args);
+    let extra_args = format_extra_args(&stack.config.extra_args);
     let command = format!(
       "{docker_compose} -p {project_name} -f {file_args}{env_file_args} up -d{extra_args}{service_args}",
     );
@@ -729,7 +737,7 @@ impl Resolve<super::Args> for ComposeRun {
     replacers.extend(interpolator.secret_replacers);
 
     let mut res = ComposeRunResponse::default();
-    let (run_directory, env_file_path) = match write_stack(
+    let (run_directory, env_file_path) = match write::stack(
       &stack,
       repo.as_ref(),
       git_token,

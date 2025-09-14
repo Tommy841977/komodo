@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use crate::{
-  config::periphery_config, git::handle_post_repo_execution,
+  config::periphery_config, helpers::handle_post_repo_execution,
 };
 
 impl Resolve<super::Args> for GetLatestCommit {

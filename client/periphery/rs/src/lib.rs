@@ -7,8 +7,11 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 pub mod api;
+pub mod connections;
+pub mod message;
 
 mod terminal;
+mod ws;
 
 fn periphery_http_client() -> &'static reqwest::Client {
   static PERIPHERY_HTTP_CLIENT: OnceLock<reqwest::Client> =

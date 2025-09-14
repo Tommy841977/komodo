@@ -54,7 +54,7 @@ impl WriteStackRes for &mut ComposeRunResponse {
 /// Either writes the stack file_contents to a file, or clones the repo.
 /// Asssumes all interpolation is already complete.
 /// Returns (run_directory, env_file_path, periphery_replacers)
-pub async fn write_stack<'a>(
+pub async fn stack<'a>(
   stack: &'a Stack,
   repo: Option<&Repo>,
   git_token: Option<String>,

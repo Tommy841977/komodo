@@ -74,3 +74,20 @@ impl JsonString {
     }
   }
 }
+
+pub enum JsonBytes {
+  Ok(Vec<u8>),
+  Err(serde_json::Error),
+}
+
+impl<T> From<T> for JsonBytes
+where
+  T: Serialize,
+{
+  fn from(value: T) -> JsonBytes {
+    match serde_json::to_vec(&value) {
+      Ok(body) => JsonBytes::Ok(body),
+      Err(e) => JsonBytes::Err(e),
+    }
+  }
+}
