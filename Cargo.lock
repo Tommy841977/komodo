@@ -4738,9 +4738,9 @@ dependencies = [
 
 [[package]]
 name = "serror"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bee3f9a0b6dee3c0e8c581dddc560f66f20a1c5c20f6609e827167265ac84eb6"
+checksum = "24c14f04906667a9c590474a470a92fa2c76189d4afe186017329e9cb22f1d6a"
 dependencies = [
  "anyhow",
  "axum",

@@ -19,19 +19,37 @@ pub fn to_transport_bytes(
   res
 }
 
+/// Deserializes channel id from
+/// incoming transport bytes.
+pub fn id_from_transport_bytes(bytes: &[u8]) -> anyhow::Result<Uuid> {
+  if bytes.len() < 16 {
+    return Err(anyhow!("Transport bytes too short to include uuid"));
+  }
+  Uuid::from_slice(&bytes[..16]).context("Invalid Uuid bytes")
+}
+
 /// Deserializes channel id + data from
 /// incoming transport bytes.
-pub fn from_transport_bytes<T: DeserializeOwned>(
+pub fn from_transport_bytes(
   bytes: &[u8],
-) -> anyhow::Result<(Uuid, MessageState, Option<T>)> {
+) -> anyhow::Result<(Uuid, MessageState, Option<&[u8]>)> {
   if bytes.len() < 17 {
     return Err(anyhow!(
-      "Transport bytes too short to include uuid at state"
+      "Transport bytes too short to include uuid and state"
     ));
   }
   let (id, state, data) = (&bytes[..16], bytes[16], bytes.get(17..));
   let id = Uuid::from_slice(id).context("Invalid Uuid bytes")?;
   let state = MessageState::from_byte(state);
+  Ok((id, state, data))
+}
+
+/// Deserializes channel id + data from
+/// incoming transport bytes.
+pub fn parse_from_transport_bytes<T: DeserializeOwned>(
+  bytes: &[u8],
+) -> anyhow::Result<(Uuid, MessageState, Option<T>)> {
+  let (id, state, data) = from_transport_bytes(bytes)?;
   let data = data
     .map(|data| {
       serde_json::from_slice::<T>(data)

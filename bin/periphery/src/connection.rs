@@ -8,13 +8,13 @@ use axum::{
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use periphery_client::message::{
-  MessageState, from_transport_bytes, to_transport_bytes,
+  MessageState, parse_from_transport_bytes, to_transport_bytes,
 };
 use resolver_api::Resolve;
 use response::JsonBytes;
 use serror::{AddStatusCode, serialize_error_bytes};
 use tokio::sync::{Mutex, mpsc::Sender};
-use transport::{BufferedReceiver, buffered_channel};
+use transport::channel::{BufferedReceiver, buffered_channel};
 
 use crate::api::PeripheryRequest;
 
@@ -90,7 +90,7 @@ pub async fn inbound_connection(
 fn handle_msg(msg: Bytes) {
   tokio::spawn(async move {
     let (id, request) =
-      match from_transport_bytes::<PeripheryRequest>(&msg) {
+      match parse_from_transport_bytes::<PeripheryRequest>(&msg) {
         Ok((id, _, Some(request))) => (id, request),
         Ok(_) => {
           // No data, ignore
@@ -151,9 +151,9 @@ fn response_sender() -> &'static Sender<Vec<u8>> {
     .expect("response_sender accessed before initialized")
 }
 
-static RESPONSE_RECEIVER: OnceLock<Mutex<BufferedReceiver>> =
+static RESPONSE_RECEIVER: OnceLock<Mutex<BufferedReceiver<Vec<u8>>>> =
   OnceLock::new();
-fn response_receiver() -> &'static Mutex<BufferedReceiver> {
+fn response_receiver() -> &'static Mutex<BufferedReceiver<Vec<u8>>> {
   RESPONSE_RECEIVER
     .get()
     .expect("response_receiver accessed before initialized")

@@ -7,7 +7,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 
 pub mod api;
-pub mod connections;
+pub mod connection;
 pub mod message;
 
 mod terminal;

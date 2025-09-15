@@ -59,6 +59,7 @@ fn clone_anyhow_error(e: &anyhow::Error) -> anyhow::Error {
   e
 }
 
+#[derive(Debug)]
 pub struct CloneCache<K: PartialEq + Eq + Hash, T: Clone> {
   cache: RwLock<HashMap<K, T>>,
 }
