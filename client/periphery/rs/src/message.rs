@@ -59,14 +59,6 @@ pub fn parse_from_transport_bytes<T: DeserializeOwned>(
   Ok((id, state, data))
 }
 
-/// Periphery -> Core message
-#[derive(Debug, Serialize, Deserialize)]
-struct WsResponse {
-  pub state: MessageState,
-  ///
-  pub data: Option<Vec<u8>>,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MessageState {
   Successful,

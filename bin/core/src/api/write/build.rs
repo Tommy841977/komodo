@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{Context, anyhow};
 use database::mongo_indexed::doc;
@@ -429,9 +429,9 @@ async fn get_on_host_periphery(
     }
     BuilderConfig::Url(config) => {
       let periphery = PeripheryClient::new(
+        builder.id,
         config.address,
         config.passkey,
-        Duration::from_secs(3),
       );
       periphery.health_check().await?;
       Ok(periphery)

@@ -78,7 +78,7 @@ pub async fn alert_servers(
   ts: i64,
   mut servers: HashMap<String, Server>,
 ) {
-  let server_statuses = server_status_cache().get_list().await;
+  let server_statuses = server_status_cache().get_values().await;
 
   let (open_alerts, open_disk_alerts) = match get_open_alerts().await
   {

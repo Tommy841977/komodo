@@ -1,132 +1,115 @@
-use std::{sync::OnceLock, time::Duration};
+use std::{
+  collections::HashMap,
+  sync::{
+    Arc, OnceLock,
+    atomic::{self, AtomicBool},
+  },
+  time::Duration,
+};
 
-use anyhow::{Context, anyhow};
 use cache::CloneCache;
 use futures_util::{SinkExt, StreamExt};
-use serror::deserialize_error_bytes;
-use tokio::sync::mpsc;
+use komodo_client::entities::server::Server;
+use tokio::sync::{RwLock, mpsc};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::{bytes::Bytes, sync::CancellationToken};
-use tracing::warn;
+use tracing::{info, warn};
 use transport::channel::{BufferedReceiver, buffered_channel};
 use uuid::Uuid;
 
-use crate::message::{
-  MessageState, from_transport_bytes, id_from_transport_bytes,
-  to_transport_bytes,
-};
-
-#[derive(Debug)]
-struct Connection {
-  cancel: CancellationToken,
-  request_sender: mpsc::Sender<Vec<u8>>,
-}
-
-impl Connection {
-  fn new()
-  -> (Connection, BufferedReceiver<Vec<u8>>, CancellationToken) {
-    let (request_sender, request_receiver) = buffered_channel(1000);
-    let cancel = CancellationToken::new();
-    (
-      Connection {
-        cancel: cancel.clone(),
-        request_sender,
-      },
-      request_receiver,
-      cancel,
-    )
-  }
-}
-
-impl Clone for Connection {
-  fn clone(&self) -> Self {
-    Self {
-      cancel: self.cancel.clone(),
-      request_sender: self.request_sender.clone(),
-    }
-  }
-}
+use crate::message::id_from_transport_bytes;
 
 /// server id => connection
-type Connections = CloneCache<String, Connection>;
-fn connections() -> &'static Connections {
-  static CONNECTIONS: OnceLock<Connections> = OnceLock::new();
+pub type PeripheryConnections =
+  CloneCache<String, Arc<PeripheryConnection>>;
+pub fn periphery_connections() -> &'static PeripheryConnections {
+  static CONNECTIONS: OnceLock<PeripheryConnections> =
+    OnceLock::new();
   CONNECTIONS.get_or_init(Default::default)
 }
 
-type ResponseChannels = CloneCache<Uuid, mpsc::Sender<Vec<u8>>>;
-fn response_channels() -> &'static ResponseChannels {
+pub type ResponseChannels =
+  CloneCache<String, Arc<CloneCache<Uuid, mpsc::Sender<Vec<u8>>>>>;
+pub fn periphery_response_channels() -> &'static ResponseChannels {
   static RESPONSE_CHANNELS: OnceLock<ResponseChannels> =
     OnceLock::new();
   RESPONSE_CHANNELS.get_or_init(Default::default)
 }
 
-pub async fn send_request(
-  server_id: &String,
-  data: &[u8],
-) -> anyhow::Result<Vec<u8>> {
-  let request_sender = &connections()
-    .get(server_id)
-    .await
-    .with_context(|| {
-      format!("No connection found for server {server_id}")
-    })?
-    .request_sender;
-  let id = Uuid::new_v4();
-  let (response_sender, mut response_receiever) = mpsc::channel(1000);
-  response_channels().insert(id, response_sender).await;
-  if let Err(e) = request_sender
-    .send(to_transport_bytes(id, MessageState::InProgress, data))
-    .await
-    .context("Failed to send request over channel")
+/// Managed connections to exactly those specified by specs (ServerId -> Address)
+pub async fn manage_connections(servers: &[Server]) {
+  let periphery_connections = periphery_connections();
+  let periphery_response_channels = periphery_response_channels();
+
+  let specs = servers
+    .iter()
+    .map(|s| (&s.id, &s.config.address))
+    .collect::<HashMap<_, _>>();
+
+  // Clear non specced server connections / channels
+  for (server_id, connection) in
+    periphery_connections.get_entries().await
   {
-    // cleanup
-    response_channels().remove(&id).await;
-    return Err(e);
+    if !specs.contains_key(&server_id) {
+      connection.cancel.cancel();
+      periphery_connections.remove(&server_id).await;
+      periphery_response_channels.remove(&server_id).await;
+    }
   }
 
-  // Poll for the response
-  loop {
-    let bytes = match response_receiever.recv().await {
-      Some(bytes) => bytes,
-      None => {
-        return Err(anyhow!(
-          "Sender dropped before response was recieved"
-        ));
+  // Apply latest connection specs
+  for (server_id, address) in specs {
+    let address = fix_address(address);
+    match periphery_connections.get(server_id).await {
+      // Existing connection good to go, nothing to do
+      Some(existing) if existing.address == address => {}
+      // All other cases re-spawn connection
+      _ => {
+        if let Err(e) =
+          spawn_connection(server_id.clone(), address).await
+        {
+          warn!(
+            "Failed to spawn new connnection for {server_id} | {e:#}"
+          );
+        }
       }
-    };
-    let (state, data) = match from_transport_bytes(&bytes) {
-      Ok((_, state, Some(data))) => (state, data),
-      // TODO: Handle no data cases
-      Ok(_) => continue,
-      Err(e) => {
-        warn!("Received invalid message | {e:#}");
-        continue;
-      }
-    };
-    match state {
-      // TODO: improve the allocation in .to_vec
-      MessageState::Successful => return Ok(data.to_vec()),
-      MessageState::Failed => {
-        return Err(deserialize_error_bytes(&data));
-      }
-      // TODO: bail if this isn't received frequent enough
-      MessageState::InProgress => continue,
     }
   }
 }
 
+/// Fixes server addresses:
+///   server.domain => wss://server.domain
+///   http://server.domain => ws://server.domain
+///   https://server.domain => wss://server.domain
+fn fix_address(address: &str) -> String {
+  if address.starts_with("ws://") || address.starts_with("wss://") {
+    return address.to_string();
+  }
+  if address.starts_with("http://") {
+    return address.replace("http://", "ws://");
+  }
+  if address.starts_with("https://") {
+    return address.replace("https://", "wss://");
+  }
+  format!("wss://{address}")
+}
+
 // Assumes address already wss formatted
-pub async fn spawn_connection(
+async fn spawn_connection(
   server_id: String,
   address: String,
 ) -> anyhow::Result<()> {
-  let response_channels = response_channels();
-  let (channel, mut request_receiver, cancel) = Connection::new();
-  if let Some(existing) =
-    connections().insert(server_id, channel).await
+  let response_channels = periphery_response_channels()
+    .get_or_insert_default(&server_id)
+    .await;
+
+  let (connection, mut request_receiver, cancel) =
+    PeripheryConnection::new(address.clone());
+  if let Some(existing_connection) = periphery_connections()
+    .insert(server_id, connection.clone())
+    .await
   {
-    existing.cancel.cancel();
+    existing_connection.cancel.cancel();
   }
 
   tokio::spawn(async move {
@@ -137,18 +120,25 @@ pub async fn spawn_connection(
           match crate::ws::connect_websocket(&address).await {
             Ok(socket) => socket,
             Err(e) => {
-              warn!("{e:#}");
+              connection.set_error(e).await;
               tokio::time::sleep(Duration::from_secs(5)).await;
               continue;
             }
           };
+
+        info!("Connected to {address}");
+        connection.connected.store(true, atomic::Ordering::Relaxed);
+        connection.clear_error().await;
 
         let (mut ws_write, mut ws_read) = socket.split();
 
         let forward_requests = async {
           loop {
             let message = match request_receiver.recv().await {
-              None => break,
+              None => {
+                info!("Got None over request reciever for {address}");
+                break;
+              }
               Some(request) => {
                 Message::Binary(Bytes::copy_from_slice(request))
               }
@@ -214,6 +204,9 @@ pub async fn spawn_connection(
           _ = forward_requests => {},
           _ = read_responses => {}
         };
+
+        warn!("Disconnnected from {address}");
+        connection.connected.store(false, atomic::Ordering::Relaxed);
       }
     };
 
@@ -224,4 +217,63 @@ pub async fn spawn_connection(
   });
 
   Ok(())
+}
+
+#[derive(Debug)]
+pub struct PeripheryConnection {
+  address: String,
+  connected: AtomicBool,
+  error: RwLock<Option<serror::Serror>>,
+  request_sender: mpsc::Sender<Vec<u8>>,
+  cancel: CancellationToken,
+}
+
+impl PeripheryConnection {
+  fn new(
+    address: String,
+  ) -> (
+    Arc<PeripheryConnection>,
+    BufferedReceiver<Vec<u8>>,
+    CancellationToken,
+  ) {
+    let (request_sender, request_receiver) = buffered_channel(1000);
+    let cancel = CancellationToken::new();
+    (
+      PeripheryConnection {
+        address,
+        connected: AtomicBool::new(false),
+        error: Default::default(),
+        cancel: cancel.clone(),
+        request_sender,
+      }
+      .into(),
+      request_receiver,
+      cancel,
+    )
+  }
+
+  pub async fn send(
+    &self,
+    value: Vec<u8>,
+  ) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+    self.request_sender.send(value).await
+  }
+
+  pub fn connected(&self) -> bool {
+    self.connected.load(atomic::Ordering::Relaxed)
+  }
+
+  pub async fn error(&self) -> Option<serror::Serror> {
+    self.error.read().await.clone()
+  }
+
+  pub async fn set_error(&self, e: anyhow::Error) {
+    let mut error = self.error.write().await;
+    *error = Some(e.into());
+  }
+
+  pub async fn clear_error(&self) {
+    let mut error = self.error.write().await;
+    *error = None;
+  }
 }

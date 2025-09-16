@@ -37,7 +37,7 @@ git = { path = "lib/git" }
 
 # MOGH
 run_command = { version = "0.0.6", features = ["async_tokio"] }
-serror = { version = "0.5.2", default-features = false }
+serror = { version = "0.5.3", default-features = false }
 slack = { version = "0.4.0", package = "slack_client_rs", default-features = false, features = ["rustls"] }
 derive_default_builder = "0.1.8"
 derive_empty_traits = "0.1.0"
@@ -76,7 +76,7 @@ bson = { version = "2.15.0" } # must keep in sync with mongodb version
 serde_yaml_ng = "0.10.0"
 serde_json = "1.0.145"
 serde_qs = "0.15.0"
-toml = "0.9.5"
+toml = "0.9.6"
 
 # ERROR
 anyhow = "1.0.99"

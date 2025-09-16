@@ -98,6 +98,7 @@ fn handle_msg(msg: Bytes) {
         }
         Err(e) => {
           // TODO: handle:
+          warn!("Failed to parse transport bytes | {e:#}");
           return;
         }
       };

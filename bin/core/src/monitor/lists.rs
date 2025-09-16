@@ -5,13 +5,11 @@ use komodo_client::entities::{
   },
   stack::ComposeProject,
 };
-use periphery_client::{
-  PeripheryClient,
-  api::{GetDockerLists, GetDockerListsResponse},
-};
+use periphery_client::api::{GetDockerLists, GetDockerListsResponse};
 
 pub async fn get_docker_lists(
-  periphery: &PeripheryClient,
+  // periphery: &PeripheryClient,
+  server_id: &String,
 ) -> anyhow::Result<(
   Vec<ContainerListItem>,
   Vec<NetworkListItem>,
@@ -25,7 +23,7 @@ pub async fn get_docker_lists(
     images,
     volumes,
     projects,
-  } = periphery.request(GetDockerLists {}).await?;
+  } = periphery_client::request(server_id, GetDockerLists {}).await?;
   // TODO: handle the errors
   let (
     mut containers,

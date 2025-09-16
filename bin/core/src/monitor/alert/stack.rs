@@ -19,7 +19,7 @@ pub async fn alert_stacks(
 ) {
   let action_states = action_states();
   let mut alerts = Vec::<Alert>::new();
-  for status in stack_status_cache().get_list().await {
+  for status in stack_status_cache().get_values().await {
     // Don't alert if prev None
     let Some(prev) = status.prev else {
       continue;

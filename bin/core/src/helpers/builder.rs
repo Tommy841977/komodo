@@ -48,13 +48,13 @@ pub async fn get_builder_periphery(
         ));
       }
       let periphery = PeripheryClient::new(
-        config.address,
+        &builder.id,
+        &config.address,
         if config.passkey.is_empty() {
-          core_config().passkey.clone()
+          &core_config().passkey
         } else {
-          config.passkey
+          &config.passkey
         },
-        Duration::from_secs(3),
       );
       periphery
         .health_check()
@@ -71,13 +71,21 @@ pub async fn get_builder_periphery(
       Ok((periphery, BuildCleanupData::Server))
     }
     BuilderConfig::Aws(config) => {
-      get_aws_builder(&resource_name, version, config, update).await
+      get_aws_builder(
+        &builder.id,
+        &resource_name,
+        version,
+        config,
+        update,
+      )
+      .await
     }
   }
 }
 
 #[instrument(skip_all, fields(resource_name, update_id = update.id))]
 async fn get_aws_builder(
+  builder_id: &String,
   resource_name: &str,
   version: Option<Version>,
   config: AwsBuilderConfig,
@@ -109,9 +117,9 @@ async fn get_aws_builder(
   let periphery_address =
     format!("{protocol}://{ip}:{}", config.port);
   let periphery = PeripheryClient::new(
+    builder_id,
     &periphery_address,
     &core_config().passkey,
-    Duration::from_secs(3),
   );
 
   let start_connect_ts = komodo_timestamp();

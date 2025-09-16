@@ -8,21 +8,19 @@ use axum::{
   response::Response,
   routing::{get, post},
 };
-use derive_variants::ExtractVariant;
-use serror::{AddStatusCode, AddStatusCodeError, Json};
+use serror::{AddStatusCode, AddStatusCodeError};
 use std::net::{IpAddr, SocketAddr};
-use uuid::Uuid;
 
 use crate::config::periphery_config;
 
 pub fn router() -> Router {
   Router::new()
-    .merge(
-      Router::new()
-        .route("/", post(handler))
-        .layer(middleware::from_fn(guard_request_by_passkey)),
-    )
-    .route("/ws", get(crate::connection::inbound_connection))
+    // .merge(
+    //   Router::new()
+    //     .route("/", post(handler))
+    //     .layer(middleware::from_fn(guard_request_by_passkey)),
+    // )
+    .route("/", get(crate::connection::inbound_connection))
     .nest(
       "/terminal",
       Router::new()
@@ -45,40 +43,40 @@ pub fn router() -> Router {
     .layer(middleware::from_fn(guard_request_by_ip))
 }
 
-async fn handler(
-  Json(request): Json<crate::api::PeripheryRequest>,
-) -> serror::Result<axum::response::Response> {
-  let req_id = Uuid::new_v4();
+// async fn handler(
+//   Json(request): Json<crate::api::PeripheryRequest>,
+// ) -> serror::Result<axum::response::Response> {
+//   let req_id = Uuid::new_v4();
 
-  let res = tokio::spawn(task(req_id, request))
-    .await
-    .context("task handler spawn error");
+//   let res = tokio::spawn(task(req_id, request))
+//     .await
+//     .context("task handler spawn error");
 
-  if let Err(e) = &res {
-    warn!("request {req_id} spawn error: {e:#}");
-  }
+//   if let Err(e) = &res {
+//     warn!("request {req_id} spawn error: {e:#}");
+//   }
 
-  res?
-}
+//   res?
+// }
 
-async fn task(
-  req_id: Uuid,
-  request: crate::api::PeripheryRequest,
-) -> serror::Result<axum::response::Response> {
-  let variant = request.extract_variant();
+// async fn task(
+//   req_id: Uuid,
+//   request: crate::api::PeripheryRequest,
+// ) -> serror::Result<axum::response::Response> {
+//   let variant = request.extract_variant();
 
-  // let res = request.resolve(&crate::api::Args).await.map(|res| res.0);
+//   // let res = request.resolve(&crate::api::Args).await.map(|res| res.0);
 
-  // if let Err(e) = &res {
-  //   warn!(
-  //     "request {req_id} | type: {variant:?} | error: {:#}",
-  //     e.error
-  //   );
-  // }
+//   // if let Err(e) = &res {
+//   //   warn!(
+//   //     "request {req_id} | type: {variant:?} | error: {:#}",
+//   //     e.error
+//   //   );
+//   // }
 
-  // res
-  todo!()
-}
+//   // res
+//   todo!()
+// }
 
 async fn guard_request_by_passkey(
   req: Request<Body>,

@@ -20,7 +20,7 @@ pub async fn alert_deployments(
 ) {
   let mut alerts = Vec::<Alert>::new();
   let action_states = action_states();
-  for status in deployment_status_cache().get_list().await {
+  for status in deployment_status_cache().get_values().await {
     // Don't alert if prev None
     let Some(prev) = status.prev else {
       continue;

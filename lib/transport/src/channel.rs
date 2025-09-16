@@ -27,9 +27,9 @@ impl<T: Deref> BufferedReceiver<T> {
     }
   }
 
-  /// If 'next: Some(bytes)':
+  /// - If 'next: Some(bytes)':
   ///   - Immediately returns borrow of next.
-  /// Else:
+  /// - Else:
   ///   - Wait for next item
   ///   - store in 'next'
   ///   - return borrow of next.

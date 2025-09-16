@@ -57,6 +57,5 @@ bytes.workspace = true
 axum.workspace = true
 clap.workspace = true
 envy.workspace = true
-uuid.workspace = true
 rand.workspace = true
 shell-escape.workspace = true

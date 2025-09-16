@@ -1,4 +1,4 @@
-use std::{fmt::Write, time::Duration};
+use std::fmt::Write;
 
 use anyhow::{Context, anyhow};
 use database::mongo_indexed::Document;
@@ -192,13 +192,13 @@ pub fn periphery_client(
   }
 
   let client = PeripheryClient::new(
+    &server.id,
     &server.config.address,
     if server.config.passkey.is_empty() {
       &core_config().passkey
     } else {
       &server.config.passkey
     },
-    Duration::from_secs(server.config.timeout_seconds as u64),
   );
 
   Ok(client)
