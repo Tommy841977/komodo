@@ -5,11 +5,14 @@ use serde_json::json;
 use serror::{deserialize_error_bytes, serror_into_anyhow_error};
 use tokio::sync::mpsc;
 use tracing::warn;
+use transport::{
+  MessageState,
+  bytes::{from_transport_bytes, to_transport_bytes},
+};
 use uuid::Uuid;
 
-use crate::{
-  connection::{periphery_connections, periphery_response_channels},
-  message::{MessageState, from_transport_bytes, to_transport_bytes},
+use crate::connection::{
+  periphery_connections, periphery_response_channels,
 };
 
 #[tracing::instrument(name = "PeripheryRequest", level = "debug")]
@@ -43,8 +46,7 @@ where
     })?;
 
   let id = Uuid::new_v4();
-  let (response_sender, mut response_receiever) =
-    mpsc::channel::<Vec<u8>>(1000);
+  let (response_sender, mut response_receiever) = mpsc::channel(1000);
   response_channels.insert(id, response_sender).await;
 
   let req_type = T::req_type();

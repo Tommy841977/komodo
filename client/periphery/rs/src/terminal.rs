@@ -4,9 +4,7 @@ use reqwest::RequestBuilder;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::{
-  PeripheryClient, api::terminal::*, ws::connect_websocket,
-};
+use crate::{PeripheryClient, api::terminal::*};
 
 impl PeripheryClient {
   /// Handles ws connect and login.
@@ -35,7 +33,7 @@ impl PeripheryClient {
       self.address.replacen("http", "ws", 1)
     );
 
-    connect_websocket(&url).await
+    transport::client::connect_websocket(&url).await
   }
 
   /// Executes command on specified terminal,
@@ -95,7 +93,7 @@ impl PeripheryClient {
       self.address.replacen("http", "ws", 1)
     );
 
-    connect_websocket(&url).await
+    transport::client::connect_websocket(&url).await
   }
 
   /// Executes command on specified container,

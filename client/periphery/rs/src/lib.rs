@@ -5,11 +5,9 @@ use serde::{Serialize, de::DeserializeOwned};
 
 pub mod api;
 pub mod connection;
-pub mod message;
 
 mod request;
 mod terminal;
-mod ws;
 
 pub use request::request;
 

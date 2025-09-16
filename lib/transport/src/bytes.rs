@@ -1,6 +1,8 @@
 use anyhow::{Context, anyhow};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use bytes::Bytes;
 use uuid::Uuid;
+
+use crate::MessageState;
 
 /// Serializes channel id + data to byte vec.
 /// The first 16 bytes are the Uuid, followed by the json serialized data bytes.
@@ -8,7 +10,7 @@ pub fn to_transport_bytes(
   id: Uuid,
   state: MessageState,
   data: &[u8],
-) -> Vec<u8> {
+) -> Bytes {
   // Index 0..15
   let mut res = id.into_bytes().to_vec();
   // Index 16
@@ -16,7 +18,7 @@ pub fn to_transport_bytes(
   // Index 17..end
   res.extend_from_slice(data);
 
-  res
+  Bytes::from(res)
 }
 
 /// Deserializes channel id from
@@ -42,28 +44,6 @@ pub fn from_transport_bytes(
   let id = Uuid::from_slice(id).context("Invalid Uuid bytes")?;
   let state = MessageState::from_byte(state);
   Ok((id, state, data))
-}
-
-/// Deserializes channel id + data from
-/// incoming transport bytes.
-pub fn parse_from_transport_bytes<T: DeserializeOwned>(
-  bytes: &[u8],
-) -> anyhow::Result<(Uuid, MessageState, Option<T>)> {
-  let (id, state, data) = from_transport_bytes(bytes)?;
-  let data = data
-    .map(|data| {
-      serde_json::from_slice::<T>(data)
-        .context("Failed to deserialize message data")
-    })
-    .transpose()?;
-  Ok((id, state, data))
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MessageState {
-  Successful,
-  Failed,
-  InProgress,
 }
 
 impl MessageState {

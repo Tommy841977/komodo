@@ -19,14 +19,12 @@ resolver_api.workspace = true
 serror.workspace = true
 # external
 tokio-tungstenite.workspace = true
-futures-util.workspace = true
-tokio-util.workspace = true
 serde_json.workspace = true
 serde_qs.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
-rustls.workspace = true
+bytes.workspace = true
 tokio.workspace = true
 serde.workspace = true
 uuid.workspace = true

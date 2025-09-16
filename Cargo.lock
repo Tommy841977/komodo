@@ -3646,19 +3646,17 @@ name = "periphery_client"
 version = "1.19.4"
 dependencies = [
  "anyhow",
+ "bytes",
  "cache",
- "futures-util",
  "komodo_client",
  "reqwest",
  "resolver_api",
- "rustls 0.23.31",
  "serde",
  "serde_json",
  "serde_qs",
  "serror",
  "tokio",
  "tokio-tungstenite 0.27.0",
- "tokio-util",
  "tracing",
  "transport",
  "uuid",
@@ -5511,7 +5509,18 @@ dependencies = [
 name = "transport"
 version = "1.19.4"
 dependencies = [
+ "anyhow",
+ "axum",
+ "bytes",
+ "cache",
+ "futures-util",
+ "rustls 0.23.31",
+ "serror",
  "tokio",
+ "tokio-tungstenite 0.27.0",
+ "tokio-util",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
