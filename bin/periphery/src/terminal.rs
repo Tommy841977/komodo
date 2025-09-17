@@ -7,17 +7,13 @@ use std::{
 };
 
 use anyhow::{Context, anyhow};
-use axum::http::StatusCode;
 use bytes::Bytes;
 use futures::Stream;
 use komodo_client::{
-  api::write::TerminalRecreateMode,
-  entities::{komodo_timestamp, server::TerminalInfo},
+  api::write::TerminalRecreateMode, entities::server::TerminalInfo,
 };
 use pin_project_lite::pin_project;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
-use rand::Rng;
-use serror::AddStatusCodeError;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
 
@@ -392,53 +388,6 @@ where
         }
       }
       Poll::Pending => Poll::Pending,
-    }
-  }
-}
-
-/// Tokens valid for 3 seconds
-const TOKEN_VALID_FOR_MS: i64 = 3_000;
-
-pub fn auth_tokens() -> &'static AuthTokens {
-  static AUTH_TOKENS: OnceLock<AuthTokens> = OnceLock::new();
-  AUTH_TOKENS.get_or_init(Default::default)
-}
-
-#[derive(Default)]
-pub struct AuthTokens {
-  map: std::sync::Mutex<HashMap<String, i64>>,
-}
-
-impl AuthTokens {
-  pub fn create_auth_token(&self) -> String {
-    let mut lock = self.map.lock().unwrap();
-    // clear out any old tokens here (prevent unbounded growth)
-    let ts = komodo_timestamp();
-    lock.retain(|_, valid_until| *valid_until > ts);
-    let token: String = rand::rng()
-      .sample_iter(&rand::distr::Alphanumeric)
-      .take(30)
-      .map(char::from)
-      .collect();
-    lock.insert(token.clone(), ts + TOKEN_VALID_FOR_MS);
-    token
-  }
-
-  pub fn check_token(&self, token: String) -> serror::Result<()> {
-    let Some(valid_until) = self.map.lock().unwrap().remove(&token)
-    else {
-      return Err(
-        anyhow!("Terminal auth token not found")
-          .status_code(StatusCode::UNAUTHORIZED),
-      );
-    };
-    if komodo_timestamp() <= valid_until {
-      Ok(())
-    } else {
-      Err(
-        anyhow!("Terminal token is expired")
-          .status_code(StatusCode::UNAUTHORIZED),
-      )
     }
   }
 }

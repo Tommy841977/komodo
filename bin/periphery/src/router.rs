@@ -17,22 +17,14 @@ pub fn router() -> Router {
   Router::new()
     .route("/", get(crate::connection::inbound_connection))
     .nest(
-      "/terminal",
+      "/terminal/execute",
       Router::new()
+        .route("/", post(crate::api::terminal::execute_terminal))
         .route(
           "/container",
-          get(crate::api::terminal::connect_container_exec),
+          post(crate::api::terminal::execute_container_exec),
         )
-        .nest(
-          "/execute",
-          Router::new()
-            .route("/", post(crate::api::terminal::execute_terminal))
-            .route(
-              "/container",
-              post(crate::api::terminal::execute_container_exec),
-            )
-            .layer(middleware::from_fn(guard_request_by_passkey)),
-        ),
+        .layer(middleware::from_fn(guard_request_by_passkey)),
     )
     .layer(middleware::from_fn(guard_request_by_ip))
 }

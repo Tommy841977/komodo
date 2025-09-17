@@ -150,7 +150,6 @@ pub enum PeripheryRequest {
   DisconnectTerminal(DisconnectTerminal),
   DeleteTerminal(DeleteTerminal),
   DeleteAllTerminals(DeleteAllTerminals),
-  CreateTerminalAuthToken(CreateTerminalAuthToken),
 }
 
 //

@@ -2796,7 +2796,6 @@ dependencies = [
  "periphery_client",
  "pin-project-lite",
  "portable-pty",
- "rand 0.9.2",
  "resolver_api",
  "response",
  "run_command",
