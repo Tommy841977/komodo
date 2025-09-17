@@ -14,8 +14,9 @@ use periphery_client::api::{
 };
 use resolver_api::Resolve;
 use tokio::fs;
+use uuid::Uuid;
 
-use crate::{config::periphery_config, helpers};
+use crate::{api::Args, config::periphery_config, helpers};
 
 pub trait WriteStackRes {
   fn logs(&mut self) -> &mut Vec<Log>;
@@ -151,6 +152,9 @@ async fn write_stack_linked_repo<'a>(
   let on_pull = (!repo.config.on_pull.is_none())
     .then_some(repo.config.on_pull.clone());
 
+  let req_args = Args {
+    req_id: Uuid::new_v4(),
+  };
   let clone_res = if stack.config.reclone {
     CloneRepo {
       args,
@@ -162,7 +166,7 @@ async fn write_stack_linked_repo<'a>(
       skip_secret_interp: repo.config.skip_secret_interp,
       replacers,
     }
-    .resolve(&crate::api::Args)
+    .resolve(&req_args)
     .await
     .map_err(|e| e.error)?
   } else {
@@ -176,7 +180,7 @@ async fn write_stack_linked_repo<'a>(
       skip_secret_interp: repo.config.skip_secret_interp,
       replacers,
     }
-    .resolve(&crate::api::Args)
+    .resolve(&req_args)
     .await
     .map_err(|e| e.error)?
   };
@@ -236,6 +240,9 @@ async fn write_stack_inline_repo(
 
   let git_token = stack_git_token(git_token, &args, &mut res)?;
 
+  let req_args = Args {
+    req_id: Uuid::new_v4(),
+  };
   let clone_res = if stack.config.reclone {
     CloneRepo {
       args,
@@ -247,7 +254,7 @@ async fn write_stack_inline_repo(
       skip_secret_interp: Default::default(),
       replacers: Default::default(),
     }
-    .resolve(&crate::api::Args)
+    .resolve(&req_args)
     .await
     .map_err(|e| e.error)?
   } else {
@@ -261,7 +268,7 @@ async fn write_stack_inline_repo(
       skip_secret_interp: Default::default(),
       replacers: Default::default(),
     }
-    .resolve(&crate::api::Args)
+    .resolve(&req_args)
     .await
     .map_err(|e| e.error)?
   };

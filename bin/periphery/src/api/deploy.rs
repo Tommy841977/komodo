@@ -33,7 +33,7 @@ impl Resolve<super::Args> for Deploy {
       stop_time = self.stop_time,
     )
   )]
-  async fn resolve(self, _: &super::Args) -> serror::Result<Log> {
+  async fn resolve(self, args: &super::Args) -> serror::Result<Log> {
     let Deploy {
       mut deployment,
       stop_signal,
@@ -87,7 +87,7 @@ impl Resolve<super::Args> for Deploy {
       signal: stop_signal,
       time: stop_time,
     })
-    .resolve(&super::Args)
+    .resolve(args)
     .await;
     debug!("container stopped and removed");
 

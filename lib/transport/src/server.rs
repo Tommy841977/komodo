@@ -11,7 +11,8 @@ use tracing::{error, warn};
 
 use crate::{TransportHandler, channel::BufferedReceiver};
 
-pub fn inbound_connection<
+/// Handles server side / inbound connection
+pub fn handle_server_connection<
   T: TransportHandler + Send + Sync + 'static,
 >(
   ws: WebSocketUpgrade,

@@ -45,11 +45,25 @@ pub struct ConnectTerminal {
 //
 
 #[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
+#[response(Uuid)]
+#[error(serror::Error)]
+pub struct ConnectContainerExec {
+  /// The name of the container to connect to.
+  pub container: String,
+  /// The shell to start inside container.
+  /// Default: `sh`
+  #[serde(default = "default_container_shell")]
+  pub shell: String,
+}
+
+//
+
+#[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
 #[response(NoData)]
 #[error(serror::Error)]
 pub struct DisconnectTerminal {
-  /// The connection of the terminal to disconnect from
-  pub uuid: Uuid,
+  /// The connection id of the terminal to disconnect from
+  pub id: Uuid,
 }
 
 //

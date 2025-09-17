@@ -14,6 +14,7 @@ use periphery_client::api::{
 use resolver_api::Resolve;
 use response::JsonBytes;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{config::periphery_config, docker::docker_client};
 
@@ -29,7 +30,9 @@ mod network;
 mod stats;
 mod volume;
 
-pub struct Args;
+pub struct Args {
+  pub req_id: Uuid,
+}
 
 #[derive(
   Serialize, Deserialize, Debug, Clone, Resolve, EnumVariants,
@@ -143,6 +146,7 @@ pub enum PeripheryRequest {
   ListTerminals(ListTerminals),
   CreateTerminal(CreateTerminal),
   ConnectTerminal(ConnectTerminal),
+  ConnectContainerExec(ConnectContainerExec),
   DisconnectTerminal(DisconnectTerminal),
   DeleteTerminal(DeleteTerminal),
   DeleteAllTerminals(DeleteAllTerminals),
@@ -220,7 +224,7 @@ impl Resolve<Args> for GetDockerLists {
   #[instrument(name = "GetDockerLists", level = "debug", skip_all)]
   async fn resolve(
     self,
-    _: &Args,
+    args: &Args,
   ) -> serror::Result<GetDockerListsResponse> {
     let docker = docker_client();
     let containers =
@@ -235,7 +239,7 @@ impl Resolve<Args> for GetDockerLists {
       docker.list_images(_containers).map_err(Into::into),
       docker.list_volumes(_containers).map_err(Into::into),
       ListComposeProjects {}
-        .resolve(&Args)
+        .resolve(args)
         .map_err(|e| e.error.into())
     );
     Ok(GetDockerListsResponse {

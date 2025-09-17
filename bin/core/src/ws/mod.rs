@@ -5,7 +5,7 @@ use crate::{
 use anyhow::anyhow;
 use axum::{
   Router,
-  extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
+  extract::ws::{Message, WebSocket},
   routing::get,
 };
 use bytes::Bytes;
@@ -14,13 +14,10 @@ use komodo_client::{
   entities::{server::Server, user::User},
   ws::WsLoginMessage,
 };
-use tokio::{
-  net::TcpStream,
-  sync::mpsc::{Receiver, Sender},
+use periphery_client::{
+  PeripheryClient, api::terminal::DisconnectTerminal,
 };
-use tokio_tungstenite::{
-  MaybeTlsStream, WebSocketStream, tungstenite,
-};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use transport::{
   MessageState,
@@ -155,115 +152,39 @@ async fn handle_container_terminal(
 
   trace!("connecting to periphery container exec websocket");
 
-  let periphery_socket = match periphery
-    .connect_container_exec(container, shell)
-    .await
-  {
-    Ok(ws) => ws,
-    Err(e) => {
-      debug!(
-        "Failed connect to periphery container exec websocket | {e:#}"
-      );
-      let _ = client_socket
-        .send(Message::text(format!("ERROR: {e:#}")))
-        .await;
-      let _ = client_socket.close().await;
-      return;
-    }
-  };
+  let (periphery_connection_id, periphery_sender, periphery_receiver) =
+    match periphery.connect_container_exec(container, shell).await {
+      Ok(ws) => ws,
+      Err(e) => {
+        debug!(
+          "Failed connect to periphery container exec websocket | {e:#}"
+        );
+        let _ = client_socket
+          .send(Message::text(format!("ERROR: {e:#}")))
+          .await;
+        let _ = client_socket.close().await;
+        return;
+      }
+    };
 
   trace!("connected to periphery container exec websocket");
 
-  core_periphery_forward_ws(client_socket, periphery_socket).await
+  forward_ws_channel(
+    periphery,
+    client_socket,
+    periphery_connection_id,
+    periphery_sender,
+    periphery_receiver,
+  )
+  .await
 }
 
-async fn core_periphery_forward_ws(
-  client_socket: axum::extract::ws::WebSocket,
-  periphery_socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
-) {
-  let (mut periphery_send, mut periphery_receive) =
-    periphery_socket.split();
-  let (mut core_send, mut core_receive) = client_socket.split();
-  let cancel = CancellationToken::new();
-
-  trace!("starting ws exchange");
-
-  let core_to_periphery = async {
-    loop {
-      let res = tokio::select! {
-        res = core_receive.next() => res,
-        _ = cancel.cancelled() => {
-          trace!("core to periphery read: cancelled from inside");
-          break;
-        }
-      };
-      match res {
-        Some(Ok(msg)) => {
-          if let Err(e) =
-            periphery_send.send(axum_to_tungstenite(msg)).await
-          {
-            debug!("Failed to send terminal message | {e:?}",);
-            cancel.cancel();
-            break;
-          };
-        }
-        Some(Err(_e)) => {
-          cancel.cancel();
-          break;
-        }
-        None => {
-          cancel.cancel();
-          break;
-        }
-      }
-    }
-  };
-
-  let periphery_to_core = async {
-    loop {
-      let res = tokio::select! {
-        res = periphery_receive.next() => res,
-        _ = cancel.cancelled() => {
-          trace!("periphery to core read: cancelled from inside");
-          break;
-        }
-      };
-      match res {
-        Some(Ok(msg)) => {
-          if let Err(e) =
-            core_send.send(tungstenite_to_axum(msg)).await
-          {
-            debug!("{e:?}");
-            cancel.cancel();
-            break;
-          };
-        }
-        Some(Err(e)) => {
-          let _ = core_send
-              .send(Message::text(format!(
-                "ERROR: Failed to receive message from periphery | {e:?}"
-              )))
-              .await;
-          cancel.cancel();
-          break;
-        }
-        None => {
-          let _ = core_send.send(Message::text("STREAM EOF")).await;
-          cancel.cancel();
-          break;
-        }
-      }
-    }
-  };
-
-  tokio::join!(core_to_periphery, periphery_to_core);
-}
-
-async fn core_periphery_forward_ws_channel(
+async fn forward_ws_channel(
+  periphery: PeripheryClient,
   client_socket: axum::extract::ws::WebSocket,
   periphery_connection_id: Uuid,
-  periphery_send: Sender<Bytes>,
-  mut periphery_receive: Receiver<Bytes>,
+  periphery_sender: Sender<Bytes>,
+  mut periphery_receiver: Receiver<Bytes>,
 ) {
   let (mut core_send, mut core_receive) = client_socket.split();
   let cancel = CancellationToken::new();
@@ -281,7 +202,7 @@ async fn core_periphery_forward_ws_channel(
       };
       match res {
         Some(Ok(Message::Binary(data))) => {
-          if let Err(e) = periphery_send
+          if let Err(e) = periphery_sender
             .send(to_transport_bytes(
               data.into(),
               periphery_connection_id,
@@ -296,7 +217,7 @@ async fn core_periphery_forward_ws_channel(
         }
         Some(Ok(Message::Text(data))) => {
           let data: Bytes = data.into();
-          if let Err(e) = periphery_send
+          if let Err(e) = periphery_sender
             .send(to_transport_bytes(
               data.into(),
               periphery_connection_id,
@@ -331,7 +252,7 @@ async fn core_periphery_forward_ws_channel(
   let periphery_to_core = async {
     loop {
       let res = tokio::select! {
-        res = periphery_receive.recv() => res.map(data_from_transport_bytes),
+        res = periphery_receiver.recv() => res.map(data_from_transport_bytes),
         _ = cancel.cancelled() => {
           trace!("periphery to core read: cancelled from inside");
           break;
@@ -358,44 +279,15 @@ async fn core_periphery_forward_ws_channel(
   };
 
   tokio::join!(core_to_periphery, periphery_to_core);
-}
 
-fn axum_to_tungstenite(msg: Message) -> tungstenite::Message {
-  match msg {
-    Message::Text(text) => tungstenite::Message::Text(
-      // TODO: improve this conversion cost from axum ws library
-      tungstenite::Utf8Bytes::from(text.to_string()),
-    ),
-    Message::Binary(bytes) => tungstenite::Message::Binary(bytes),
-    Message::Ping(bytes) => tungstenite::Message::Ping(bytes),
-    Message::Pong(bytes) => tungstenite::Message::Pong(bytes),
-    Message::Close(close_frame) => {
-      tungstenite::Message::Close(close_frame.map(|cf| {
-        tungstenite::protocol::CloseFrame {
-          code: cf.code.into(),
-          reason: tungstenite::Utf8Bytes::from(cf.reason.to_string()),
-        }
-      }))
-    }
-  }
-}
-
-fn tungstenite_to_axum(msg: tungstenite::Message) -> Message {
-  match msg {
-    tungstenite::Message::Text(text) => {
-      Message::Text(Utf8Bytes::from(text.to_string()))
-    }
-    tungstenite::Message::Binary(bytes) => Message::Binary(bytes),
-    tungstenite::Message::Ping(bytes) => Message::Ping(bytes),
-    tungstenite::Message::Pong(bytes) => Message::Pong(bytes),
-    tungstenite::Message::Close(close_frame) => {
-      Message::Close(close_frame.map(|cf| CloseFrame {
-        code: cf.code.into(),
-        reason: Utf8Bytes::from(cf.reason.to_string()),
-      }))
-    }
-    tungstenite::Message::Frame(_) => {
-      unreachable!()
-    }
+  if let Err(e) = periphery
+    .request(DisconnectTerminal {
+      id: periphery_connection_id,
+    })
+    .await
+  {
+    warn!(
+      "Failed to disconnect Periphery terminal forwarding | {e:#}",
+    )
   }
 }

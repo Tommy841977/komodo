@@ -30,7 +30,7 @@ pub async fn create_terminal(
   name: String,
   command: String,
   recreate: TerminalRecreateMode,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Arc<Terminal>> {
   trace!(
     "CreateTerminal: {name} | command: {command} | recreate: {recreate:?}"
   );
@@ -40,7 +40,7 @@ pub async fn create_terminal(
     && let Some(terminal) = terminals.get(&name)
   {
     if terminal.command == command {
-      return Ok(());
+      return Ok(terminal.clone());
     } else if matches!(recreate, Never) {
       return Err(anyhow!(
         "Terminal {name} already exists, but has command {} instead of {command}",
@@ -48,16 +48,15 @@ pub async fn create_terminal(
       ));
     }
   }
-  if let Some(prev) = terminals.insert(
-    name,
+  let terminal = Arc::new(
     Terminal::new(command)
       .await
-      .context("Failed to init terminal")?
-      .into(),
-  ) {
+      .context("Failed to init terminal")?,
+  );
+  if let Some(prev) = terminals.insert(name, terminal.clone()) {
     prev.cancel();
   }
-  Ok(())
+  Ok(terminal)
 }
 
 pub async fn delete_terminal(name: &str) {

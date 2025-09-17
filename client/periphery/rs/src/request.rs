@@ -11,8 +11,8 @@ use transport::{
 };
 use uuid::Uuid;
 
-use crate::connection::{
-  periphery_connections, periphery_response_channels,
+use crate::{
+  connection::periphery_connections, periphery_response_channels,
 };
 
 #[tracing::instrument(name = "PeripheryRequest", level = "debug")]

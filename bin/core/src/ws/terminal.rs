@@ -10,7 +10,7 @@ use komodo_client::{
 
 use crate::{
   helpers::periphery_client, permission::get_check_permissions,
-  ws::core_periphery_forward_ws_channel,
+  ws::forward_ws_channel,
 };
 
 #[instrument(name = "ConnectTerminal", skip(ws))]
@@ -77,7 +77,8 @@ pub async fn handler(
 
     trace!("connected to periphery terminal websocket");
 
-    core_periphery_forward_ws_channel(
+    forward_ws_channel(
+      periphery,
       client_socket,
       periphery_connection_id,
       periphery_sender,

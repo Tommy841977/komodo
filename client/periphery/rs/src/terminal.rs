@@ -2,22 +2,15 @@ use anyhow::Context;
 use bytes::Bytes;
 use komodo_client::terminal::TerminalStreamResponse;
 use reqwest::RequestBuilder;
-use tokio::{
-  net::TcpStream,
-  sync::mpsc::{Receiver, Sender, channel},
-};
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
 use uuid::Uuid;
 
 use crate::{
-  PeripheryClient,
-  api::terminal::*,
-  connection::{periphery_connections, periphery_response_channels},
+  PeripheryClient, api::terminal::*,
+  connection::periphery_connections, periphery_response_channels,
 };
 
 impl PeripheryClient {
-  /// Handles ws connect and login.
-  /// Does not handle reconnect.
   pub async fn connect_terminal(
     &self,
     terminal: String,
@@ -34,7 +27,35 @@ impl PeripheryClient {
     let id = self
       .request(ConnectTerminal { terminal })
       .await
-      .context("Failed to create terminal connectionn")?;
+      .context("Failed to create terminal connection")?;
+
+    let response_channels = periphery_response_channels()
+      .get_or_insert_default(&self.id)
+      .await;
+    let (response_sender, response_receiever) = channel(1000);
+    response_channels.insert(id, response_sender).await;
+
+    Ok((id, connection.request_sender.clone(), response_receiever))
+  }
+
+  pub async fn connect_container_exec(
+    &self,
+    container: String,
+    shell: String,
+  ) -> anyhow::Result<(Uuid, Sender<Bytes>, Receiver<Bytes>)> {
+    tracing::trace!(
+      "request | type: ConnectContainerExec | container name: {container} | shell: {shell}",
+    );
+
+    let connection =
+      periphery_connections().get(&self.id).await.with_context(
+        || format!("No connection found for server {}", self.id),
+      )?;
+
+    let id = self
+      .request(ConnectContainerExec { container, shell })
+      .await
+      .context("Failed to create conntainer exec connection")?;
 
     let response_channels = periphery_response_channels()
       .get_or_insert_default(&self.id)
@@ -72,37 +93,6 @@ impl PeripheryClient {
       .json(&ExecuteTerminalBody { terminal, command })
       .header("authorization", &self.passkey);
     terminal_stream_response(req).await
-  }
-
-  /// Handles ws connect and login.
-  /// Does not handle reconnect.
-  pub async fn connect_container_exec(
-    &self,
-    container: String,
-    shell: String,
-  ) -> anyhow::Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-    tracing::trace!(
-      "request | type: ConnectContainerExec | container name: {container} | shell: {shell}",
-    );
-
-    let token = self
-      .request(CreateTerminalAuthToken {})
-      .await
-      .context("Failed to create terminal auth token")?;
-
-    let query_str = serde_qs::to_string(&ConnectContainerExecQuery {
-      token: token.token,
-      container,
-      shell,
-    })
-    .context("Failed to serialize query string")?;
-
-    let url = format!(
-      "{}/terminal/container?{query_str}",
-      self.address.replacen("http", "ws", 1)
-    );
-
-    transport::client::connect_websocket(&url).await
   }
 
   /// Executes command on specified container,

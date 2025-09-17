@@ -1,5 +1,7 @@
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
+use bytes::Bytes;
+use cache::CloneCache;
 use resolver_api::HasResponse;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -10,6 +12,18 @@ mod request;
 mod terminal;
 
 pub use request::request;
+use tokio::sync::mpsc::Sender;
+use uuid::Uuid;
+
+// Server id => Channel sender map
+pub type ResponseChannels =
+  CloneCache<String, Arc<CloneCache<Uuid, Sender<Bytes>>>>;
+
+pub fn periphery_response_channels() -> &'static ResponseChannels {
+  static RESPONSE_CHANNELS: OnceLock<ResponseChannels> =
+    OnceLock::new();
+  RESPONSE_CHANNELS.get_or_init(Default::default)
+}
 
 fn periphery_http_client() -> &'static reqwest::Client {
   static PERIPHERY_HTTP_CLIENT: OnceLock<reqwest::Client> =

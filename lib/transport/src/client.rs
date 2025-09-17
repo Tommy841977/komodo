@@ -19,24 +19,8 @@ use tracing::{info, warn};
 
 use crate::{TransportHandler, channel::BufferedReceiver};
 
-/// Fixes server addresses:
-///   server.domain => wss://server.domain
-///   http://server.domain => ws://server.domain
-///   https://server.domain => wss://server.domain
-pub fn fix_ws_address(address: &str) -> String {
-  if address.starts_with("ws://") || address.starts_with("wss://") {
-    return address.to_string();
-  }
-  if address.starts_with("http://") {
-    return address.replace("http://", "ws://");
-  }
-  if address.starts_with("https://") {
-    return address.replace("https://", "wss://");
-  }
-  format!("wss://{address}")
-}
-
-pub async fn handle_reconnecting_websocket<
+/// Handles client side / outbound connection
+pub async fn handle_client_connection<
   T: TransportHandler + Send + Sync + 'static,
 >(
   address: &str,

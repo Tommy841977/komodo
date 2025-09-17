@@ -18,7 +18,7 @@ use transport::{
 };
 use uuid::Uuid;
 
-use crate::api::PeripheryRequest;
+use crate::api::{Args, PeripheryRequest};
 
 static WS_SENDER: OnceLock<Sender<Bytes>> = OnceLock::new();
 pub fn ws_sender() -> &'static Sender<Bytes> {
@@ -51,7 +51,7 @@ pub fn init_response_channel() {
 pub async fn inbound_connection(
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
-  transport::server::inbound_connection(
+  transport::server::handle_server_connection(
     ws,
     PeripheryTransportHandler,
     ws_receiver(),
@@ -84,7 +84,7 @@ impl TransportHandler for PeripheryTransportHandler {
   }
 }
 
-fn handle_request(id: Uuid, bytes: Bytes) {
+fn handle_request(req_id: Uuid, bytes: Bytes) {
   tokio::spawn(async move {
     let request = match data_from_transport_bytes(bytes) {
       Ok(req) if !req.is_empty() => req,
@@ -105,7 +105,7 @@ fn handle_request(id: Uuid, bytes: Bytes) {
 
     let resolve_response = async {
       let (state, data) =
-        match request.resolve(&crate::api::Args).await {
+        match request.resolve(&Args { req_id }).await {
           Ok(JsonBytes::Ok(res)) => (MessageState::Successful, res),
           Ok(JsonBytes::Err(e)) => (
             MessageState::Failed,
@@ -118,8 +118,9 @@ fn handle_request(id: Uuid, bytes: Bytes) {
             (MessageState::Failed, serialize_error_bytes(&e.error))
           }
         };
-      if let Err(e) =
-        ws_sender().send(to_transport_bytes(data, id, state)).await
+      if let Err(e) = ws_sender()
+        .send(to_transport_bytes(data, req_id, state))
+        .await
       {
         error!("Failed to send response over channel | {e:?}");
       }
@@ -131,7 +132,7 @@ fn handle_request(id: Uuid, bytes: Bytes) {
         if let Err(e) = ws_sender()
           .send(to_transport_bytes(
             Vec::new(),
-            id,
+            req_id,
             MessageState::InProgress,
           ))
           .await
@@ -150,6 +151,7 @@ fn handle_request(id: Uuid, bytes: Bytes) {
 
 pub type TerminalChannels =
   CloneCache<Uuid, (Sender<Bytes>, CancellationToken)>;
+
 pub fn terminal_channels() -> &'static TerminalChannels {
   static TERMINAL_CHANNELS: OnceLock<TerminalChannels> =
     OnceLock::new();
