@@ -428,9 +428,10 @@ async fn get_on_host_periphery(
       Err(anyhow!("Files on host doesn't work with AWS builder"))
     }
     BuilderConfig::Url(config) => {
+      // TODO: Ensure connection is actually established.
+      // Builder id no good because it may be active for multiple connections.
       let periphery = PeripheryClient::new(
         builder.id,
-        config.address,
         config.passkey,
       );
       periphery.health_check().await?;

@@ -66,11 +66,11 @@ pub fn data_from_transport_bytes(
 /// incoming transport bytes.
 pub fn from_transport_bytes(
   bytes: Bytes,
-) -> anyhow::Result<(Uuid, MessageState, Bytes)> {
+) -> anyhow::Result<(Bytes, Uuid, MessageState)> {
   let (id, state) = id_state_from_transport_bytes(&bytes)?;
   let mut res: Vec<u8> = bytes.into();
   res.drain((res.len() - 17)..);
-  Ok((id, state, res.into()))
+  Ok((res.into(), id, state))
 }
 
 impl MessageState {

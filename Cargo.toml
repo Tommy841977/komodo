@@ -69,7 +69,7 @@ axum = { version = "0.8.4", features = ["ws", "json", "macros"] }
 
 # SER/DE
 ipnetwork = { version = "0.21.1", features = ["serde"] }
-indexmap = { version = "2.11.1", features = ["serde"] }
+indexmap = { version = "2.11.3", features = ["serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
 bson = { version = "2.15.0" } # must keep in sync with mongodb version

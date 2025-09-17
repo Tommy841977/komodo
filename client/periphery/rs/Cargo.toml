@@ -18,8 +18,8 @@ cache.workspace = true
 resolver_api.workspace = true
 serror.workspace = true
 # external
+futures-util.workspace = true
 serde_json.workspace = true
-reqwest.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 bytes.workspace = true

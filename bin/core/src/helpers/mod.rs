@@ -193,7 +193,6 @@ pub fn periphery_client(
 
   let client = PeripheryClient::new(
     &server.id,
-    &server.config.address,
     if server.config.passkey.is_empty() {
       &core_config().passkey
     } else {

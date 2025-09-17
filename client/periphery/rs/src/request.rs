@@ -78,7 +78,7 @@ where
       }
     };
     let (state, data) = match from_transport_bytes(bytes) {
-      Ok((_, state, data)) if !data.is_empty() => (state, data),
+      Ok((data, _, state)) if !data.is_empty() => (state, data),
       // TODO: Handle no data cases
       Ok(_) => continue,
       Err(e) => {

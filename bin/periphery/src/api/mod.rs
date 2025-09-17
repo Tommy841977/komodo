@@ -30,6 +30,7 @@ mod network;
 mod stats;
 mod volume;
 
+#[derive(Debug)]
 pub struct Args {
   pub req_id: Uuid,
 }
@@ -145,11 +146,12 @@ pub enum PeripheryRequest {
   // Terminal
   ListTerminals(ListTerminals),
   CreateTerminal(CreateTerminal),
+  DeleteTerminal(DeleteTerminal),
+  DeleteAllTerminals(DeleteAllTerminals),
   ConnectTerminal(ConnectTerminal),
   ConnectContainerExec(ConnectContainerExec),
   DisconnectTerminal(DisconnectTerminal),
-  DeleteTerminal(DeleteTerminal),
-  DeleteAllTerminals(DeleteAllTerminals),
+  ExecuteTerminal(ExecuteTerminal),
 }
 
 //

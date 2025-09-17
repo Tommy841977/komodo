@@ -54,34 +54,19 @@ async fn execute_terminal_inner(
 ) -> serror::Result<axum::body::Body> {
   info!("/terminal/execute request | user: {}", user.username);
 
-  let res = async {
-    let server = get_check_permissions::<Server>(
-      &server,
-      &user,
-      PermissionLevel::Read.terminal(),
-    )
-    .await?;
+  let server = get_check_permissions::<Server>(
+    &server,
+    &user,
+    PermissionLevel::Read.terminal(),
+  )
+  .await?;
 
-    let periphery = periphery_client(&server)?;
+  let stream = periphery_client(&server)?
+    .execute_terminal(terminal, command)
+    .await
+    .context("Failed to execute command on periphery")?;
 
-    let stream = periphery
-      .execute_terminal(terminal, command)
-      .await
-      .context("Failed to execute command on periphery")?;
-
-    anyhow::Ok(stream)
-  }
-  .await;
-
-  let stream = match res {
-    Ok(stream) => stream,
-    Err(e) => {
-      warn!("/terminal/execute request {req_id} error: {e:#}");
-      return Err(e.into());
-    }
-  };
-
-  Ok(axum::body::Body::from_stream(stream.into_line_stream()))
+  Ok(axum::body::Body::from_stream(stream))
 }
 
 // ======================
@@ -112,43 +97,25 @@ async fn execute_container_exec_inner(
   }: ExecuteContainerExecBody,
   user: User,
 ) -> serror::Result<axum::body::Body> {
-  info!(
-    "/terminal/execute/container request | user: {}",
-    user.username
-  );
+  info!("ExecuteContainerExec request | user: {}", user.username);
 
-  let res = async {
-    let server = get_check_permissions::<Server>(
-      &server,
-      &user,
-      PermissionLevel::Read.terminal(),
-    )
-    .await?;
+  let server = get_check_permissions::<Server>(
+    &server,
+    &user,
+    PermissionLevel::Read.terminal(),
+  )
+  .await?;
 
-    let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server)?;
 
-    let stream = periphery
-      .execute_container_exec(container, shell, command)
-      .await
-      .context(
-        "Failed to execute container exec command on periphery",
-      )?;
+  let stream = periphery
+    .execute_container_exec(container, shell, command)
+    .await
+    .context(
+      "Failed to execute container exec command on periphery",
+    )?;
 
-    anyhow::Ok(stream)
-  }
-  .await;
-
-  let stream = match res {
-    Ok(stream) => stream,
-    Err(e) => {
-      warn!(
-        "/terminal/execute/container request {req_id} error: {e:#}"
-      );
-      return Err(e.into());
-    }
-  };
-
-  Ok(axum::body::Body::from_stream(stream.into_line_stream()))
+  Ok(axum::body::Body::from_stream(stream))
 }
 
 // =======================
@@ -178,45 +145,27 @@ async fn execute_deployment_exec_inner(
   }: ExecuteDeploymentExecBody,
   user: User,
 ) -> serror::Result<axum::body::Body> {
-  info!(
-    "/terminal/execute/deployment request | user: {}",
-    user.username
-  );
+  info!("ExecuteDeploymentExec request | user: {}", user.username);
 
-  let res = async {
-    let deployment = get_check_permissions::<Deployment>(
-      &deployment,
-      &user,
-      PermissionLevel::Read.terminal(),
-    )
-    .await?;
+  let deployment = get_check_permissions::<Deployment>(
+    &deployment,
+    &user,
+    PermissionLevel::Read.terminal(),
+  )
+  .await?;
 
-    let server = get::<Server>(&deployment.config.server_id).await?;
+  let server = get::<Server>(&deployment.config.server_id).await?;
 
-    let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server)?;
 
-    let stream = periphery
-      .execute_container_exec(deployment.name, shell, command)
-      .await
-      .context(
-        "Failed to execute container exec command on periphery",
-      )?;
+  let stream = periphery
+    .execute_container_exec(deployment.name, shell, command)
+    .await
+    .context(
+      "Failed to execute container exec command on periphery",
+    )?;
 
-    anyhow::Ok(stream)
-  }
-  .await;
-
-  let stream = match res {
-    Ok(stream) => stream,
-    Err(e) => {
-      warn!(
-        "/terminal/execute/deployment request {req_id} error: {e:#}"
-      );
-      return Err(e.into());
-    }
-  };
-
-  Ok(axum::body::Body::from_stream(stream.into_line_stream()))
+  Ok(axum::body::Body::from_stream(stream))
 }
 
 // ==================
@@ -247,53 +196,40 @@ async fn execute_stack_exec_inner(
   }: ExecuteStackExecBody,
   user: User,
 ) -> serror::Result<axum::body::Body> {
-  info!("/terminal/execute/stack request | user: {}", user.username);
+  info!("ExecuteStackExec request | user: {}", user.username);
 
-  let res = async {
-    let stack = get_check_permissions::<Stack>(
-      &stack,
-      &user,
-      PermissionLevel::Read.terminal(),
-    )
-    .await?;
+  let stack = get_check_permissions::<Stack>(
+    &stack,
+    &user,
+    PermissionLevel::Read.terminal(),
+  )
+  .await?;
 
-    let server = get::<Server>(&stack.config.server_id).await?;
+  let server = get::<Server>(&stack.config.server_id).await?;
 
-    let container = stack_status_cache()
-      .get(&stack.id)
-      .await
-      .context("could not get stack status")?
-      .curr
-      .services
-      .iter()
-      .find(|s| s.service == service)
-      .context("could not find service")?
-      .container
-      .as_ref()
-      .context("could not find service container")?
-      .name
-      .clone();
+  let container = stack_status_cache()
+    .get(&stack.id)
+    .await
+    .context("could not get stack status")?
+    .curr
+    .services
+    .iter()
+    .find(|s| s.service == service)
+    .context("could not find service")?
+    .container
+    .as_ref()
+    .context("could not find service container")?
+    .name
+    .clone();
 
-    let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server)?;
 
-    let stream = periphery
-      .execute_container_exec(container, shell, command)
-      .await
-      .context(
-        "Failed to execute container exec command on periphery",
-      )?;
+  let stream = periphery
+    .execute_container_exec(container, shell, command)
+    .await
+    .context(
+      "Failed to execute container exec command on periphery",
+    )?;
 
-    anyhow::Ok(stream)
-  }
-  .await;
-
-  let stream = match res {
-    Ok(stream) => stream,
-    Err(e) => {
-      warn!("/terminal/execute/stack request {req_id} error: {e:#}");
-      return Err(e.into());
-    }
-  };
-
-  Ok(axum::body::Body::from_stream(stream.into_line_stream()))
+  Ok(axum::body::Body::from_stream(stream))
 }

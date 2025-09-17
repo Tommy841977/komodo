@@ -16,6 +16,7 @@ use komodo_client::{
 };
 use periphery_client::{
   PeripheryClient, api::terminal::DisconnectTerminal,
+  periphery_response_channels,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
@@ -280,6 +281,7 @@ async fn forward_ws_channel(
 
   tokio::join!(core_to_periphery, periphery_to_core);
 
+  // Cleanup
   if let Err(e) = periphery
     .request(DisconnectTerminal {
       id: periphery_connection_id,
@@ -289,5 +291,10 @@ async fn forward_ws_channel(
     warn!(
       "Failed to disconnect Periphery terminal forwarding | {e:#}",
     )
+  }
+  if let Some(response_channels) =
+    periphery_response_channels().get(&periphery.id).await
+  {
+    response_channels.remove(&periphery_connection_id).await;
   }
 }

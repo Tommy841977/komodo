@@ -3,11 +3,12 @@
 #[macro_use]
 extern crate tracing;
 
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr, time::Duration};
 
 use anyhow::Context;
 use axum::Router;
 use axum_server::{Handle, tls_rustls::RustlsConfig};
+use periphery_client::periphery_response_channels;
 use tower_http::{
   cors::{Any, CorsLayer},
   services::{ServeDir, ServeFile},
@@ -78,6 +79,22 @@ async fn app() -> anyhow::Result<()> {
   resource::spawn_action_state_refresh_loop();
   schedule::spawn_schedule_executor();
   helpers::prune::spawn_prune_loop();
+
+  // TODO: Remove
+  tokio::spawn(async move {
+    loop {
+      tokio::time::sleep(Duration::from_secs(5)).await;
+      for (server_id, cache) in
+        periphery_response_channels().get_entries().await
+      {
+        let channels = cache.get_keys().await;
+        println!(
+          "CHANNELS: [{server_id}] [{}] {channels:?}",
+          channels.len()
+        );
+      }
+    }
+  });
 
   // Setup static frontend services
   let frontend_path = &config.frontend_path;

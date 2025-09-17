@@ -82,11 +82,14 @@ pub struct DeleteTerminal {
 #[response(NoData)]
 #[error(serror::Error)]
 pub struct DeleteAllTerminals {}
+
 //
 
 /// Note: The `terminal` must already exist, created by [CreateTerminal].
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ExecuteTerminalBody {
+#[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
+#[response(Uuid)]
+#[error(serror::Error)]
+pub struct ExecuteTerminal {
   /// Specify the terminal to execute the command on.
   pub terminal: String,
   /// The command to execute.
@@ -95,8 +98,10 @@ pub struct ExecuteTerminalBody {
 
 //
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ExecuteContainerExecBody {
+#[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
+#[response(Uuid)]
+#[error(serror::Error)]
+pub struct ExecuteContainerExec {
   /// The name of the container to execute command in.
   pub container: String,
   /// The shell to start inside container.

@@ -49,7 +49,6 @@ pub async fn get_builder_periphery(
       }
       let periphery = PeripheryClient::new(
         &builder.id,
-        &config.address,
         if config.passkey.is_empty() {
           &core_config().passkey
         } else {
@@ -114,13 +113,12 @@ async fn get_aws_builder(
   update_update(update.clone()).await?;
 
   let protocol = if config.use_https { "https" } else { "http" };
+
+  // TODO: Handle ad-hoc (non server) periphery connections. These don't have ids.
   let periphery_address =
     format!("{protocol}://{ip}:{}", config.port);
-  let periphery = PeripheryClient::new(
-    builder_id,
-    &periphery_address,
-    &core_config().passkey,
-  );
+  let periphery =
+    PeripheryClient::new(builder_id, &core_config().passkey);
 
   let start_connect_ts = komodo_timestamp();
   let mut res = Ok(GetVersionResponse {

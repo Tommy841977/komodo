@@ -1,8 +1,13 @@
+use std::{
+  pin::Pin,
+  task::{self, Poll},
+};
+
 use anyhow::Context;
 use bytes::Bytes;
-use komodo_client::terminal::TerminalStreamResponse;
-use reqwest::RequestBuilder;
+use futures_util::{Stream, StreamExt};
 use tokio::sync::mpsc::{Receiver, Sender, channel};
+use transport::bytes::data_from_transport_bytes;
 use uuid::Uuid;
 
 use crate::{
@@ -55,7 +60,7 @@ impl PeripheryClient {
     let id = self
       .request(ConnectContainerExec { container, shell })
       .await
-      .context("Failed to create conntainer exec connection")?;
+      .context("Failed to create container exec connection")?;
 
     let response_channels = periphery_response_channels()
       .get_or_insert_default(&self.id)
@@ -84,15 +89,30 @@ impl PeripheryClient {
     &self,
     terminal: String,
     command: String,
-  ) -> anyhow::Result<TerminalStreamResponse> {
+  ) -> anyhow::Result<
+    impl Stream<Item = anyhow::Result<Bytes>> + 'static,
+  > {
     tracing::trace!(
       "sending request | type: ExecuteTerminal | terminal name: {terminal} | command: {command}",
     );
-    let req = crate::periphery_http_client()
-      .post(format!("{}/terminal/execute", self.address))
-      .json(&ExecuteTerminalBody { terminal, command })
-      .header("authorization", &self.passkey);
-    terminal_stream_response(req).await
+
+    let id = self
+      .request(ExecuteTerminal { terminal, command })
+      .await
+      .context("Failed to create execute terminal connection")?;
+
+    let response_channels = periphery_response_channels()
+      .get_or_insert_default(&self.id)
+      .await;
+
+    let (response_sender, response_receiever) = channel(1000);
+
+    response_channels.insert(id, response_sender).await;
+
+    let stream = ReceiverStream(response_receiever)
+      .map(|bytes| data_from_transport_bytes(bytes));
+
+    Ok(stream)
   }
 
   /// Executes command on specified container,
@@ -114,45 +134,45 @@ impl PeripheryClient {
     container: String,
     shell: String,
     command: String,
-  ) -> anyhow::Result<TerminalStreamResponse> {
+  ) -> anyhow::Result<
+    impl Stream<Item = anyhow::Result<Bytes>> + 'static,
+  > {
     tracing::trace!(
       "sending request | type: ExecuteContainerExec | container: {container} | shell: {shell} | command: {command}",
     );
-    let req = crate::periphery_http_client()
-      .post(format!("{}/terminal/execute/container", self.address))
-      .json(&ExecuteContainerExecBody {
+
+    let id = self
+      .request(ExecuteContainerExec {
         container,
         shell,
         command,
       })
-      .header("authorization", &self.passkey);
-    terminal_stream_response(req).await
+      .await
+      .context("Failed to create execute terminal connection")?;
+
+    let response_channels = periphery_response_channels()
+      .get_or_insert_default(&self.id)
+      .await;
+
+    let (response_sender, response_receiever) = channel(1000);
+
+    response_channels.insert(id, response_sender).await;
+
+    let stream = ReceiverStream(response_receiever)
+      .map(|bytes| data_from_transport_bytes(bytes));
+
+    Ok(stream)
   }
 }
 
-async fn terminal_stream_response(
-  req: RequestBuilder,
-) -> anyhow::Result<TerminalStreamResponse> {
-  let res =
-    req.send().await.context("Failed at request to periphery")?;
-  let status = res.status();
-  tracing::debug!(
-    "got response | type: ExecuteTerminal | {status} | response: {res:?}",
-  );
-  if status.is_success() {
-    Ok(TerminalStreamResponse(res))
-  } else {
-    tracing::debug!("response is non-200");
+pub struct ReceiverStream<T>(Receiver<T>);
 
-    let text = res
-      .text()
-      .await
-      .context("Failed to convert response to text")?;
-
-    tracing::debug!("got response text, deserializing error");
-
-    let error = serror::deserialize_error(text).context(status);
-
-    Err(error)
+impl<T> Stream for ReceiverStream<T> {
+  type Item = T;
+  fn poll_next(
+    mut self: Pin<&mut Self>,
+    cx: &mut task::Context<'_>,
+  ) -> Poll<Option<T>> {
+    self.0.poll_recv(cx)
   }
 }

@@ -6,7 +6,7 @@ use axum::{
   http::{Request, StatusCode},
   middleware::{self, Next},
   response::Response,
-  routing::{get, post},
+  routing::get,
 };
 use serror::{AddStatusCode, AddStatusCodeError};
 use std::net::{IpAddr, SocketAddr};
@@ -16,48 +16,7 @@ use crate::config::periphery_config;
 pub fn router() -> Router {
   Router::new()
     .route("/", get(crate::connection::inbound_connection))
-    .nest(
-      "/terminal/execute",
-      Router::new()
-        .route("/", post(crate::api::terminal::execute_terminal))
-        .route(
-          "/container",
-          post(crate::api::terminal::execute_container_exec),
-        )
-        .layer(middleware::from_fn(guard_request_by_passkey)),
-    )
     .layer(middleware::from_fn(guard_request_by_ip))
-}
-
-async fn guard_request_by_passkey(
-  req: Request<Body>,
-  next: Next,
-) -> serror::Result<Response> {
-  if periphery_config().passkeys.is_empty() {
-    return Ok(next.run(req).await);
-  }
-  let Some(req_passkey) = req.headers().get("authorization") else {
-    return Err(
-      anyhow!("request was not sent with passkey")
-        .status_code(StatusCode::UNAUTHORIZED),
-    );
-  };
-  let req_passkey = req_passkey
-    .to_str()
-    .context("failed to convert passkey to str")
-    .status_code(StatusCode::UNAUTHORIZED)?;
-  if periphery_config()
-    .passkeys
-    .iter()
-    .any(|passkey| passkey == req_passkey)
-  {
-    Ok(next.run(req).await)
-  } else {
-    Err(
-      anyhow!("request passkey invalid")
-        .status_code(StatusCode::UNAUTHORIZED),
-    )
-  }
 }
 
 async fn guard_request_by_ip(

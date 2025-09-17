@@ -25,32 +25,18 @@ pub fn periphery_response_channels() -> &'static ResponseChannels {
   RESPONSE_CHANNELS.get_or_init(Default::default)
 }
 
-fn periphery_http_client() -> &'static reqwest::Client {
-  static PERIPHERY_HTTP_CLIENT: OnceLock<reqwest::Client> =
-    OnceLock::new();
-  PERIPHERY_HTTP_CLIENT.get_or_init(|| {
-    reqwest::Client::builder()
-      // Use to allow communication with Periphery self-signed certs.
-      .danger_accept_invalid_certs(true)
-      .build()
-      .expect("Failed to build Periphery http client")
-  })
-}
 pub struct PeripheryClient {
-  id: String,
-  address: String,
+  pub id: String,
   passkey: String,
 }
 
 impl PeripheryClient {
   pub fn new(
     id: impl Into<String>,
-    address: impl Into<String>,
     passkey: impl Into<String>,
   ) -> PeripheryClient {
     PeripheryClient {
       id: id.into(),
-      address: address.into(),
       passkey: passkey.into(),
     }
   }

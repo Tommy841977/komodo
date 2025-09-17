@@ -3,16 +3,16 @@ use std::sync::Arc;
 use anyhow::{Context, anyhow};
 use axum::http::StatusCode;
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use komodo_client::{
   api::write::TerminalRecreateMode,
   entities::{KOMODO_EXIT_CODE, NoData, server::TerminalInfo},
 };
 use periphery_client::api::terminal::*;
 use resolver_api::Resolve;
-use serror::{AddStatusCodeError, Json};
+use serror::AddStatusCodeError;
 use tokio::sync::mpsc::channel;
-use tokio_util::sync::CancellationToken;
+use tokio_util::{codec::LinesCodecError, sync::CancellationToken};
 use transport::{MessageState, bytes::to_transport_bytes};
 use uuid::Uuid;
 
@@ -21,6 +21,8 @@ use crate::{
   connection::{terminal_channels, ws_sender},
   terminal::*,
 };
+
+//
 
 impl Resolve<super::Args> for ListTerminals {
   #[instrument(name = "ListTerminals", level = "debug")]
@@ -32,6 +34,8 @@ impl Resolve<super::Args> for ListTerminals {
     Ok(list_terminals().await)
   }
 }
+
+//
 
 impl Resolve<super::Args> for CreateTerminal {
   #[instrument(name = "CreateTerminal", level = "debug")]
@@ -49,6 +53,8 @@ impl Resolve<super::Args> for CreateTerminal {
   }
 }
 
+//
+
 impl Resolve<super::Args> for DeleteTerminal {
   #[instrument(name = "DeleteTerminal", level = "debug")]
   async fn resolve(self, _: &super::Args) -> serror::Result<NoData> {
@@ -57,6 +63,8 @@ impl Resolve<super::Args> for DeleteTerminal {
   }
 }
 
+//
+
 impl Resolve<super::Args> for DeleteAllTerminals {
   #[instrument(name = "DeleteAllTerminals", level = "debug")]
   async fn resolve(self, _: &super::Args) -> serror::Result<NoData> {
@@ -64,6 +72,8 @@ impl Resolve<super::Args> for DeleteAllTerminals {
     Ok(NoData {})
   }
 }
+
+//
 
 impl Resolve<super::Args> for ConnectTerminal {
   #[instrument(name = "ConnectTerminal", level = "debug")]
@@ -75,10 +85,10 @@ impl Resolve<super::Args> for ConnectTerminal {
       );
     }
 
-    let id = Uuid::new_v4();
-
     clean_up_terminals().await;
     let terminal = get_terminal(&self.terminal).await?;
+
+    let id = Uuid::new_v4();
 
     tokio::spawn(handle_terminal_forwarding(id, terminal));
 
@@ -86,11 +96,11 @@ impl Resolve<super::Args> for ConnectTerminal {
   }
 }
 
+//
+
 impl Resolve<super::Args> for ConnectContainerExec {
   #[instrument(name = "ConnectContainerExec", level = "debug")]
-  async fn resolve(self, _: &super::Args) -> serror::Result<Uuid> {
-    let id = Uuid::new_v4();
-
+  async fn resolve(self, args: &super::Args) -> serror::Result<Uuid> {
     if periphery_config().disable_container_exec {
       return Err(
         anyhow!("Container exec is disabled in the periphery config")
@@ -102,11 +112,11 @@ impl Resolve<super::Args> for ConnectContainerExec {
 
     if container.contains("&&") || shell.contains("&&") {
       return Err(
-      anyhow!(
-        "The use of '&&' is forbidden in the container name or shell"
-      )
-      .into(),
-    );
+        anyhow!(
+          "The use of '&&' is forbidden in the container name or shell"
+        )
+        .into(),
+      );
     }
     // Create (recreate if shell changed)
     let terminal = create_terminal(
@@ -117,11 +127,15 @@ impl Resolve<super::Args> for ConnectContainerExec {
     .await
     .context("Failed to create terminal for container exec")?;
 
+    let id = Uuid::new_v4();
+
     tokio::spawn(handle_terminal_forwarding(id, terminal));
 
     Ok(id)
   }
 }
+
+//
 
 impl Resolve<super::Args> for DisconnectTerminal {
   #[instrument(name = "DisconnectTerminal", level = "debug")]
@@ -135,6 +149,83 @@ impl Resolve<super::Args> for DisconnectTerminal {
       info!("Cancel called for {}", self.id);
     }
     Ok(NoData {})
+  }
+}
+
+//
+
+impl Resolve<super::Args> for ExecuteTerminal {
+  #[instrument(name = "ExecuteTerminal", level = "debug")]
+  async fn resolve(self, _: &super::Args) -> serror::Result<Uuid> {
+    if periphery_config().disable_terminals {
+      return Err(
+        anyhow!("Terminals are disabled in the periphery config")
+          .status_code(StatusCode::FORBIDDEN),
+      );
+    }
+
+    let terminal = get_terminal(&self.terminal).await?;
+
+    let stdout =
+      setup_execute_command_on_terminal(&terminal, &self.command)
+        .await?;
+
+    let id = Uuid::new_v4();
+
+    tokio::spawn(forward_execute_command_on_terminal_response(
+      id, stdout,
+    ));
+
+    Ok(id)
+  }
+}
+
+//
+
+impl Resolve<super::Args> for ExecuteContainerExec {
+  #[instrument(name = "ExecuteContainerExec", level = "debug")]
+  async fn resolve(self, _: &super::Args) -> serror::Result<Uuid> {
+    if periphery_config().disable_container_exec {
+      return Err(
+        anyhow!("Container exec is disabled in the periphery config")
+          .into(),
+      );
+    }
+
+    let Self {
+      container,
+      shell,
+      command,
+    } = self;
+
+    if container.contains("&&") || shell.contains("&&") {
+      return Err(
+        anyhow!(
+          "The use of '&&' is forbidden in the container name or shell"
+        )
+        .into(),
+      );
+    }
+
+    // Create terminal (recreate if shell changed)
+    let terminal = create_terminal(
+      container.clone(),
+      format!("docker exec -it {container} {shell}"),
+      TerminalRecreateMode::DifferentCommand,
+    )
+    .await
+    .context("Failed to create terminal for container exec")?;
+
+    let stdout =
+      setup_execute_command_on_terminal(&terminal, &command).await?;
+
+    let id = Uuid::new_v4();
+
+    tokio::spawn(forward_execute_command_on_terminal_response(
+      id, stdout,
+    ));
+
+    Ok(id)
   }
 }
 
@@ -179,6 +270,7 @@ async fn handle_terminal_forwarding(
   if let Err(e) = init_res {
     // TODO: Handle error
     warn!("Failed to init terminal | {e:#}");
+    terminal_channels().remove(&id).await;
     return;
   }
 
@@ -295,63 +387,18 @@ async fn handle_terminal_forwarding(
 
   tokio::join!(ws_read, ws_write);
 
+  // Clean up
+  terminal_channels().remove(&id).await;
   clean_up_terminals().await;
 }
 
-pub async fn execute_terminal(
-  Json(ExecuteTerminalBody { terminal, command }): Json<
-    ExecuteTerminalBody,
-  >,
-) -> serror::Result<axum::body::Body> {
-  if periphery_config().disable_terminals {
-    return Err(
-      anyhow!("Terminals are disabled in the periphery config")
-        .status_code(StatusCode::FORBIDDEN),
-    );
-  }
-
-  execute_command_on_terminal(&terminal, &command).await
-}
-
-pub async fn execute_container_exec(
-  Json(ExecuteContainerExecBody {
-    container,
-    shell,
-    command,
-  }): Json<ExecuteContainerExecBody>,
-) -> serror::Result<axum::body::Body> {
-  if periphery_config().disable_container_exec {
-    return Err(
-      anyhow!("Container exec is disabled in the periphery config")
-        .into(),
-    );
-  }
-  if container.contains("&&") || shell.contains("&&") {
-    return Err(
-      anyhow!(
-        "The use of '&&' is forbidden in the container name or shell"
-      )
-      .into(),
-    );
-  }
-  // Create terminal (recreate if shell changed)
-  create_terminal(
-    container.clone(),
-    format!("docker exec -it {container} {shell}"),
-    TerminalRecreateMode::DifferentCommand,
-  )
-  .await
-  .context("Failed to create terminal for container exec")?;
-
-  execute_command_on_terminal(&container, &command).await
-}
-
-async fn execute_command_on_terminal(
-  terminal_name: &str,
+/// This is run before spawning task handler
+async fn setup_execute_command_on_terminal(
+  terminal: &Terminal,
   command: &str,
-) -> serror::Result<axum::body::Body> {
-  let terminal = get_terminal(terminal_name).await?;
-
+) -> serror::Result<
+  impl Stream<Item = Result<String, LinesCodecError>> + 'static,
+> {
   // Read the bytes into lines
   // This is done to check the lines for the EOF sentinal
   let mut stdout = tokio_util::codec::FramedRead::new(
@@ -395,5 +442,44 @@ async fn execute_command_on_terminal(
     }
   }
 
-  Ok(axum::body::Body::from_stream(TerminalStream { stdout }))
+  Ok(stdout)
+}
+
+async fn forward_execute_command_on_terminal_response(
+  id: Uuid,
+  mut stdout: impl Stream<Item = Result<String, LinesCodecError>> + Unpin,
+) {
+  let ws_sender = ws_sender();
+  loop {
+    match stdout.next().await {
+      Some(Ok(line)) if line.as_str() == END_OF_OUTPUT => break,
+      Some(Ok(line)) => {
+        if let Err(e) = ws_sender
+          .send(to_transport_bytes(
+            (line + "\n").into(),
+            id,
+            MessageState::Terminal,
+          ))
+          .await
+        {
+          warn!("Got ws_sender send error | {e:?}");
+          break;
+        }
+      }
+      Some(Err(e)) => {
+        warn!("Got stdout stream error | {e:?}");
+        break;
+      }
+      None => {
+        clean_up_terminals().await;
+        break;
+        // return Err(
+        //   anyhow!(
+        //     "Stdout stream terminated before start sentinel received"
+        //   )
+        //   .into(),
+        // );
+      }
+    }
+  }
 }

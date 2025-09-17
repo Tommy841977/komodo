@@ -81,6 +81,11 @@ impl<K: PartialEq + Eq + Hash + std::fmt::Debug + Clone, T: Clone>
     self.cache.read().await.get(key).cloned()
   }
 
+  pub async fn get_keys(&self) -> Vec<K> {
+    let cache = self.cache.read().await;
+    cache.keys().cloned().collect()
+  }
+
   pub async fn get_values(&self) -> Vec<T> {
     let cache = self.cache.read().await;
     cache.values().cloned().collect()
