@@ -21,7 +21,7 @@ pub async fn terminal(
 ) -> impl IntoResponse {
   ws.on_upgrade(|socket| async move {
     let Some((mut client_socket, user)) =
-      super::ws_login(socket).await
+      super::user_ws_login(socket).await
     else {
       return;
     };

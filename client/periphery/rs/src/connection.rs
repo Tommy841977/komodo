@@ -6,23 +6,17 @@ use std::{
 use bytes::Bytes;
 use cache::CloneCache;
 use komodo_client::entities::server::Server;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Sender};
 use tracing::warn;
 use transport::{
+  TransportHandler,
+  bytes::id_from_transport_bytes,
   channel::{BufferedReceiver, buffered_channel},
-  client::ClientConnection,
+  client::{ClientConnection, fix_ws_address},
 };
 use uuid::Uuid;
 
-/// server id => connection
-pub type PeripheryConnections =
-  CloneCache<String, Arc<PeripheryConnection>>;
-pub fn periphery_connections() -> &'static PeripheryConnections {
-  static CONNECTIONS: OnceLock<PeripheryConnections> =
-    OnceLock::new();
-  CONNECTIONS.get_or_init(Default::default)
-}
-
+// Server id => Channel sender map
 pub type ResponseChannels =
   CloneCache<String, Arc<CloneCache<Uuid, mpsc::Sender<Bytes>>>>;
 pub fn periphery_response_channels() -> &'static ResponseChannels {
@@ -31,13 +25,50 @@ pub fn periphery_response_channels() -> &'static ResponseChannels {
   RESPONSE_CHANNELS.get_or_init(Default::default)
 }
 
+pub struct CoreTransportHandler {
+  response_channels: Arc<CloneCache<Uuid, Sender<Bytes>>>,
+}
+
+impl CoreTransportHandler {
+  pub async fn new(server_id: &String) -> CoreTransportHandler {
+    CoreTransportHandler {
+      response_channels: periphery_response_channels()
+        .get_or_insert_default(server_id)
+        .await,
+    }
+  }
+}
+
+impl TransportHandler for CoreTransportHandler {
+  async fn handle_incoming_bytes(&self, bytes: Bytes) {
+    let id = match id_from_transport_bytes(&bytes) {
+      Ok(res) => res,
+      Err(e) => {
+        // TODO: handle better
+        warn!("Failed to read id | {e:#}");
+        return;
+      }
+    };
+    let Some(channel) = self.response_channels.get(&id).await else {
+      // TODO: handle better
+      warn!("Failed to send response | No response channel found");
+      return;
+    };
+    if let Err(e) = channel.send(bytes).await {
+      // TODO: handle better
+      warn!("Failed to send response | Channel failure | {e:#}");
+    }
+  }
+}
+
 /// Managed connections to exactly those specified by specs (ServerId -> Address)
-pub async fn manage_connections(servers: &[Server]) {
+pub async fn manage_outbound_connections(servers: &[Server]) {
   let periphery_connections = periphery_connections();
   let periphery_response_channels = periphery_response_channels();
 
   let specs = servers
     .iter()
+    .filter(|s| !s.config.address.is_empty())
     .map(|s| (&s.id, &s.config.address))
     .collect::<HashMap<_, _>>();
 
@@ -54,14 +85,14 @@ pub async fn manage_connections(servers: &[Server]) {
 
   // Apply latest connection specs
   for (server_id, address) in specs {
-    let address = fix_address(address);
+    let address = fix_ws_address(address);
     match periphery_connections.get(server_id).await {
       // Existing connection good to go, nothing to do
       Some(existing) if existing.address == address => {}
       // All other cases re-spawn connection
       _ => {
         if let Err(e) =
-          spawn_connection(server_id.clone(), address).await
+          spawn_outbound_connection(server_id.clone(), address).await
         {
           warn!(
             "Failed to spawn new connnection for {server_id} | {e:#}"
@@ -72,33 +103,14 @@ pub async fn manage_connections(servers: &[Server]) {
   }
 }
 
-/// Fixes server addresses:
-///   server.domain => wss://server.domain
-///   http://server.domain => ws://server.domain
-///   https://server.domain => wss://server.domain
-fn fix_address(address: &str) -> String {
-  if address.starts_with("ws://") || address.starts_with("wss://") {
-    return address.to_string();
-  }
-  if address.starts_with("http://") {
-    return address.replace("http://", "ws://");
-  }
-  if address.starts_with("https://") {
-    return address.replace("https://", "wss://");
-  }
-  format!("wss://{address}")
-}
-
 // Assumes address already wss formatted
-async fn spawn_connection(
+async fn spawn_outbound_connection(
   server_id: String,
   address: String,
 ) -> anyhow::Result<()> {
-  let response_channels = periphery_response_channels()
-    .get_or_insert_default(&server_id)
-    .await;
+  let transport = CoreTransportHandler::new(&server_id).await;
 
-  let (connection, request_receiver) =
+  let (connection, mut request_receiver) =
     PeripheryConnection::new(address.clone());
   if let Some(existing_connection) = periphery_connections()
     .insert(server_id, connection.clone())
@@ -107,21 +119,33 @@ async fn spawn_connection(
     existing_connection.client.cancel();
   }
 
-  transport::client::spawn_reconnecting_websocket(
-    address,
-    connection.client.clone(),
-    request_receiver,
-    response_channels,
-  );
+  tokio::spawn(async move {
+    transport::client::handle_reconnecting_websocket(
+      &address,
+      &connection.client,
+      &transport,
+      &mut request_receiver,
+    )
+    .await
+  });
 
   Ok(())
+}
+
+/// server id => connection
+pub type PeripheryConnections =
+  CloneCache<String, Arc<PeripheryConnection>>;
+pub fn periphery_connections() -> &'static PeripheryConnections {
+  static CONNECTIONS: OnceLock<PeripheryConnections> =
+    OnceLock::new();
+  CONNECTIONS.get_or_init(Default::default)
 }
 
 #[derive(Debug)]
 pub struct PeripheryConnection {
   address: String,
-  request_sender: mpsc::Sender<Bytes>,
-  pub client: Arc<ClientConnection>,
+  pub request_sender: mpsc::Sender<Bytes>,
+  pub client: ClientConnection,
 }
 
 impl PeripheryConnection {

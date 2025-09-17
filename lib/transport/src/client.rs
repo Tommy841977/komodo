@@ -8,136 +8,128 @@ use std::{
 
 use anyhow::Context;
 use bytes::Bytes;
-use cache::CloneCache;
 use futures_util::{SinkExt, StreamExt};
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
-use tokio::{
-  net::TcpStream,
-  sync::{RwLock, mpsc::Sender},
-};
+use tokio::{net::TcpStream, sync::RwLock};
 use tokio_tungstenite::{
   Connector, MaybeTlsStream, WebSocketStream, tungstenite::Message,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use uuid::Uuid;
 
-use crate::{
-  bytes::id_from_transport_bytes, channel::BufferedReceiver,
-};
+use crate::{TransportHandler, channel::BufferedReceiver};
 
-pub fn spawn_reconnecting_websocket(
-  address: String,
-  connection: Arc<ClientConnection>,
-  mut request_receiver: BufferedReceiver<Bytes>,
-  response_channels: Arc<CloneCache<Uuid, Sender<Bytes>>>,
+/// Fixes server addresses:
+///   server.domain => wss://server.domain
+///   http://server.domain => ws://server.domain
+///   https://server.domain => wss://server.domain
+pub fn fix_ws_address(address: &str) -> String {
+  if address.starts_with("ws://") || address.starts_with("wss://") {
+    return address.to_string();
+  }
+  if address.starts_with("http://") {
+    return address.replace("http://", "ws://");
+  }
+  if address.starts_with("https://") {
+    return address.replace("https://", "wss://");
+  }
+  format!("wss://{address}")
+}
+
+pub async fn handle_reconnecting_websocket<
+  T: TransportHandler + Send + Sync + 'static,
+>(
+  address: &str,
+  connection: &ClientConnection,
+  transport: &T,
+  write_receiver: &mut BufferedReceiver<Bytes>,
 ) {
-  tokio::spawn(async move {
-    loop {
-      let socket = match connect_websocket(&address).await {
-        Ok(socket) => socket,
-        Err(e) => {
-          connection.set_error(e).await;
-          tokio::time::sleep(Duration::from_secs(5)).await;
-          continue;
-        }
-      };
+  loop {
+    let socket = match connect_websocket(address).await {
+      Ok(socket) => socket,
+      Err(e) => {
+        connection.set_error(e).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        continue;
+      }
+    };
 
-      info!("Connected to {address}");
-      connection.connected.store(true, atomic::Ordering::Relaxed);
-      connection.clear_error().await;
+    info!("Connected to {address}");
+    connection.connected.store(true, atomic::Ordering::Relaxed);
+    connection.clear_error().await;
 
-      let (mut ws_write, mut ws_read) = socket.split();
+    let (mut ws_write, mut ws_read) = socket.split();
 
-      let forward_requests = async {
-        loop {
-          let next = tokio::select! {
-            next = request_receiver.recv() => next,
-            _ = connection.cancel.cancelled() => {
-              let _ = ws_write.close().await;
-              break;
-            }
-          };
+    let forward_writes = async {
+      loop {
+        let next = tokio::select! {
+          next = write_receiver.recv() => next,
+          _ = connection.cancel.cancelled() => break,
+        };
 
-          let message = match next {
-            None => {
-              info!("Got None over request reciever for {address}");
-              break;
-            }
-            Some(request) => {
-              Message::Binary(Bytes::copy_from_slice(request))
-            }
-          };
+        let message = match next {
+          None => {
+            info!("Got None over request reciever for {address}");
+            break;
+          }
+          Some(request) => {
+            Message::Binary(Bytes::copy_from_slice(request))
+          }
+        };
 
-          match ws_write.send(message).await {
-            Ok(_) => request_receiver.clear_buffer(),
-            Err(e) => {
-              warn!("Failed to send request to {address} | {e:#}");
-              break;
-            }
+        match ws_write.send(message).await {
+          Ok(_) => write_receiver.clear_buffer(),
+          Err(e) => {
+            warn!("Failed to send request to {address} | {e:#}");
+            break;
           }
         }
-      };
+      }
+      // Cancel again if not already
+      let _ = ws_write.close().await;
+      connection.cancel();
+    };
 
-      let read_responses = async {
-        loop {
-          let next = tokio::select! {
-            next = ws_read.next() => next,
-            _ = connection.cancel.cancelled() => break,
-          };
+    let handle_reads = async {
+      loop {
+        let next = tokio::select! {
+          next = ws_read.next() => next,
+          _ = connection.cancel.cancelled() => break,
+        };
 
-          let bytes = match next {
-            Some(Ok(Message::Binary(bytes))) => bytes,
-            Some(Ok(Message::Close(frame))) => {
-              warn!(
-                "Connection to {address} broken with frame: {frame:?}"
-              );
-              break;
-            }
-            Some(Err(e)) => {
-              warn!(
-                "Connection to {address} broken with error: {e:?}"
-              );
-              break;
-            }
-            None => {
-              warn!("Connection to {address} closed");
-              break;
-            }
-            // Can ignore other message types
-            Some(Ok(_)) => {
-              continue;
-            }
-          };
-
-          let id = match id_from_transport_bytes(&bytes) {
-            Ok(res) => res,
-            Err(e) => {
-              warn!("Failed to read id from {address} | {e:#}");
-              continue;
-            }
-          };
-
-          let Some(channel) = response_channels.get(&id).await else {
+        match next {
+          Some(Ok(Message::Binary(bytes))) => {
+            transport.handle_incoming_bytes(bytes).await
+          }
+          Some(Ok(Message::Close(frame))) => {
             warn!(
-              "Failed to send response for {address} | No response channel found"
+              "Connection to {address} broken with frame: {frame:?}"
             );
+            break;
+          }
+          Some(Err(e)) => {
+            warn!("Connection to {address} broken with error: {e:?}");
+            break;
+          }
+          None => {
+            warn!("Connection to {address} closed");
+            break;
+          }
+          // Can ignore other message types
+          Some(Ok(_)) => {
             continue;
-          };
-          if let Err(e) = channel.send(bytes).await {
-            warn!(
-              "Failed to send response for {address} | Channel failure | {e:#}"
-            );
           }
-        }
-      };
+        };
+      }
+      // Cancel again if not already
+      connection.cancel();
+    };
 
-      tokio::join!(forward_requests, read_responses);
+    tokio::join!(forward_writes, handle_reads);
 
-      warn!("Disconnnected from {address}");
-      connection.connected.store(false, atomic::Ordering::Relaxed);
-    }
-  });
+    warn!("Disconnnected from {address}");
+    connection.connected.store(false, atomic::Ordering::Relaxed);
+  }
 }
 
 #[derive(Debug)]

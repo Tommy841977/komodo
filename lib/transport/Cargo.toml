@@ -8,8 +8,6 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-cache.workspace = true
-#
 serror.workspace = true
 #
 tokio-tungstenite.workspace = true

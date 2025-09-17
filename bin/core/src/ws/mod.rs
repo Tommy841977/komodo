@@ -8,19 +8,29 @@ use axum::{
   extract::ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
   routing::get,
 };
+use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use komodo_client::{
   entities::{server::Server, user::User},
   ws::WsLoginMessage,
 };
-use tokio::net::TcpStream;
+use tokio::{
+  net::TcpStream,
+  sync::mpsc::{Receiver, Sender},
+};
 use tokio_tungstenite::{
   MaybeTlsStream, WebSocketStream, tungstenite,
 };
 use tokio_util::sync::CancellationToken;
+use transport::{
+  MessageState,
+  bytes::{data_from_transport_bytes, to_transport_bytes},
+};
+use uuid::Uuid;
 
 mod container;
 mod deployment;
+mod periphery;
 mod stack;
 mod terminal;
 mod update;
@@ -35,7 +45,7 @@ pub fn router() -> Router {
 }
 
 #[instrument(level = "debug")]
-async fn ws_login(
+async fn user_ws_login(
   mut socket: WebSocket,
 ) -> Option<(WebSocket, User)> {
   let login_msg = match socket.recv().await {
@@ -237,6 +247,107 @@ async fn core_periphery_forward_ws(
           cancel.cancel();
           break;
         }
+        None => {
+          let _ = core_send.send(Message::text("STREAM EOF")).await;
+          cancel.cancel();
+          break;
+        }
+      }
+    }
+  };
+
+  tokio::join!(core_to_periphery, periphery_to_core);
+}
+
+async fn core_periphery_forward_ws_channel(
+  client_socket: axum::extract::ws::WebSocket,
+  periphery_connection_id: Uuid,
+  periphery_send: Sender<Bytes>,
+  mut periphery_receive: Receiver<Bytes>,
+) {
+  let (mut core_send, mut core_receive) = client_socket.split();
+  let cancel = CancellationToken::new();
+
+  trace!("starting ws exchange");
+
+  let core_to_periphery = async {
+    loop {
+      let res = tokio::select! {
+        res = core_receive.next() => res,
+        _ = cancel.cancelled() => {
+          trace!("core to periphery read: cancelled from inside");
+          break;
+        }
+      };
+      match res {
+        Some(Ok(Message::Binary(data))) => {
+          if let Err(e) = periphery_send
+            .send(to_transport_bytes(
+              data.into(),
+              periphery_connection_id,
+              MessageState::Terminal,
+            ))
+            .await
+          {
+            debug!("Failed to send terminal message | {e:?}",);
+            cancel.cancel();
+            break;
+          };
+        }
+        Some(Ok(Message::Text(data))) => {
+          let data: Bytes = data.into();
+          if let Err(e) = periphery_send
+            .send(to_transport_bytes(
+              data.into(),
+              periphery_connection_id,
+              MessageState::Terminal,
+            ))
+            .await
+          {
+            debug!("Failed to send terminal message | {e:?}",);
+            cancel.cancel();
+            break;
+          };
+        }
+        // TODO: Disconnect from periphery when client disconnects
+        Some(Ok(Message::Close(_frame))) => {
+          cancel.cancel();
+          break;
+        }
+        // Ignore
+        Some(Ok(_)) => {}
+        Some(Err(_e)) => {
+          cancel.cancel();
+          break;
+        }
+        None => {
+          cancel.cancel();
+          break;
+        }
+      }
+    }
+  };
+
+  let periphery_to_core = async {
+    loop {
+      let res = tokio::select! {
+        res = periphery_receive.recv() => res.map(data_from_transport_bytes),
+        _ = cancel.cancelled() => {
+          trace!("periphery to core read: cancelled from inside");
+          break;
+        }
+      };
+      match res {
+        Some(Ok(bytes)) => {
+          if let Err(e) = core_send.send(Message::Binary(bytes)).await
+          {
+            debug!("{e:?}");
+            cancel.cancel();
+            break;
+          };
+        }
+        // No data, ignore
+        Some(Err(_e)) => {}
         None => {
           let _ = core_send.send(Message::text("STREAM EOF")).await;
           cancel.cancel();

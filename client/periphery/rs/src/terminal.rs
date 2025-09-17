@@ -1,10 +1,19 @@
 use anyhow::Context;
+use bytes::Bytes;
 use komodo_client::terminal::TerminalStreamResponse;
 use reqwest::RequestBuilder;
-use tokio::net::TcpStream;
+use tokio::{
+  net::TcpStream,
+  sync::mpsc::{Receiver, Sender, channel},
+};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use uuid::Uuid;
 
-use crate::{PeripheryClient, api::terminal::*};
+use crate::{
+  PeripheryClient,
+  api::terminal::*,
+  connection::{periphery_connections, periphery_response_channels},
+};
 
 impl PeripheryClient {
   /// Handles ws connect and login.
@@ -12,28 +21,28 @@ impl PeripheryClient {
   pub async fn connect_terminal(
     &self,
     terminal: String,
-  ) -> anyhow::Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+  ) -> anyhow::Result<(Uuid, Sender<Bytes>, Receiver<Bytes>)> {
     tracing::trace!(
       "request | type: ConnectTerminal | terminal name: {terminal}",
     );
 
-    let token = self
-      .request(CreateTerminalAuthToken {})
+    let connection =
+      periphery_connections().get(&self.id).await.with_context(
+        || format!("No connection found for server {}", self.id),
+      )?;
+
+    let id = self
+      .request(ConnectTerminal { terminal })
       .await
-      .context("Failed to create terminal auth token")?;
+      .context("Failed to create terminal connectionn")?;
 
-    let query_str = serde_qs::to_string(&ConnectTerminalQuery {
-      token: token.token,
-      terminal,
-    })
-    .context("Failed to serialize query string")?;
+    let response_channels = periphery_response_channels()
+      .get_or_insert_default(&self.id)
+      .await;
+    let (response_sender, response_receiever) = channel(1000);
+    response_channels.insert(id, response_sender).await;
 
-    let url = format!(
-      "{}/terminal?{query_str}",
-      self.address.replacen("http", "ws", 1)
-    );
-
-    transport::client::connect_websocket(&url).await
+    Ok((id, connection.request_sender.clone(), response_receiever))
   }
 
   /// Executes command on specified terminal,

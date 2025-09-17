@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 use serror::{deserialize_error_bytes, serror_into_anyhow_error};
 use tokio::sync::mpsc;
-use tracing::warn;
+use tracing::{info, warn};
 use transport::{
   MessageState,
   bytes::{from_transport_bytes, to_transport_bytes},
@@ -25,11 +25,12 @@ where
   T::Response: DeserializeOwned,
 {
   let connection =
-    &periphery_connections().get(server_id).await.with_context(
+    periphery_connections().get(server_id).await.with_context(
       || format!("No connection found for server {server_id}"),
     )?;
 
   if !connection.connected() {
+    info!("got server not connected");
     if let Some(e) = connection.error().await {
       return Err(serror_into_anyhow_error(e));
     }
@@ -57,7 +58,7 @@ where
   .context("Failed to serialize request to bytes")?;
 
   if let Err(e) = connection
-    .send(to_transport_bytes(id, MessageState::InProgress, &data))
+    .send(to_transport_bytes(data, id, MessageState::Request))
     .await
     .context("Failed to send request over channel")
   {
@@ -76,8 +77,8 @@ where
         ));
       }
     };
-    let (state, data) = match from_transport_bytes(&bytes) {
-      Ok((_, state, Some(data))) => (state, data),
+    let (state, data) = match from_transport_bytes(bytes) {
+      Ok((_, state, data)) if !data.is_empty() => (state, data),
       // TODO: Handle no data cases
       Ok(_) => continue,
       Err(e) => {
@@ -90,16 +91,24 @@ where
       MessageState::Successful => {
         // cleanup
         response_channels.remove(&id).await;
-        return serde_json::from_slice(data)
+        return serde_json::from_slice(&data)
           .context("Failed to parse successful response");
       }
       MessageState::Failed => {
         // cleanup
         response_channels.remove(&id).await;
-        return Err(deserialize_error_bytes(data));
+        return Err(deserialize_error_bytes(&data));
       }
       // TODO: bail if this isn't received frequent enough
       MessageState::InProgress => continue,
+      // Shouldn't be received by this receiver
+      other => {
+        // TODO: delete log
+        warn!(
+          "Got other message over over response channel: {other:?}"
+        );
+        continue;
+      }
     }
   }
 }

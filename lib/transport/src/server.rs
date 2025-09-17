@@ -9,15 +9,17 @@ use serror::AddStatusCode;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
-use crate::channel::BufferedReceiver;
+use crate::{TransportHandler, channel::BufferedReceiver};
 
-pub fn inbound_connection(
+pub fn inbound_connection<
+  T: TransportHandler + Send + Sync + 'static,
+>(
   ws: WebSocketUpgrade,
-  handle_read: impl Fn(Bytes) + Send + Sync + 'static,
+  transport: T,
   write_receiver: &'static Mutex<BufferedReceiver<Bytes>>,
 ) -> serror::Result<Response> {
   // Limits to only one active websocket connection.
-  let mut response_receiver = write_receiver
+  let mut write_receiver = write_receiver
     .try_lock()
     .status_code(StatusCode::FORBIDDEN)?;
 
@@ -26,12 +28,34 @@ pub fn inbound_connection(
 
     let (mut ws_write, mut ws_read) = socket.split();
 
-    // Handle incoming messages
-    let ws_read = async {
+    let forward_writes = async {
+      loop {
+        let msg = match write_receiver.recv().await {
+          // Sender Dropped (shouldn't happen, it is static).
+          None => break,
+          // This has to copy the bytes to follow ownership rules.
+          Some(msg) => Message::Binary(Bytes::copy_from_slice(msg)),
+        };
+        match ws_write.send(msg).await {
+          // Clears the stored message from receiver buffer.
+          // TODO: Move after response ack.
+          Ok(_) => write_receiver.clear_buffer(),
+          Err(e) => {
+            warn!("Failed to send response | {e:?}");
+            let _ = ws_write.close().await;
+            break;
+          }
+        }
+      }
+    };
+
+    let handle_reads = async {
       loop {
         match ws_read.next().await {
           // Incoming core msg
-          Some(Ok(Message::Binary(msg))) => handle_read(msg),
+          Some(Ok(Message::Binary(bytes))) => {
+            transport.handle_incoming_bytes(bytes).await
+          }
           // Disconnection cases.
           Some(Ok(Message::Close(frame))) => {
             warn!("Connection closed with frame: {frame:?}");
@@ -50,31 +74,9 @@ pub fn inbound_connection(
       }
     };
 
-    // Handle outgoing messages
-    let ws_write = async {
-      loop {
-        let msg = match response_receiver.recv().await {
-          // Sender Dropped (shouldn't happen, it is static).
-          None => break,
-          // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Message::Binary(Bytes::copy_from_slice(msg)),
-        };
-        match ws_write.send(msg).await {
-          // Clears the stored message from receiver buffer.
-          // TODO: Move after response ack from Core.
-          Ok(_) => response_receiver.clear_buffer(),
-          Err(e) => {
-            warn!("Failed to send response | {e:?}");
-            let _ = ws_write.close().await;
-            break;
-          }
-        }
-      }
-    };
-
     tokio::select! {
-      _ = ws_read => {},
-      _ = ws_write => {}
+      _ = forward_writes => {},
+      _ = handle_reads => {},
     };
   }))
 }

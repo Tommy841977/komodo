@@ -4,6 +4,7 @@ use komodo_client::{
 };
 use resolver_api::Resolve;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
 #[response(Vec<TerminalInfo>)]
@@ -29,6 +30,26 @@ pub struct CreateTerminal {
 
 fn default_command() -> String {
   String::from("bash")
+}
+
+//
+
+#[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
+#[response(Uuid)]
+#[error(serror::Error)]
+pub struct ConnectTerminal {
+  /// The name of the terminal to connect to
+  pub terminal: String,
+}
+
+//
+
+#[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
+#[response(NoData)]
+#[error(serror::Error)]
+pub struct DisconnectTerminal {
+  /// The connection of the terminal to disconnect from
+  pub uuid: Uuid,
 }
 
 //

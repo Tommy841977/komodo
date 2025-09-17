@@ -23,7 +23,7 @@ pub async fn handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 
   // handle http -> ws updgrade
   ws.on_upgrade(|socket| async move {
-    let Some((socket, user)) = super::ws_login(socket).await else {
+    let Some((socket, user)) = super::user_ws_login(socket).await else {
       return
     };
 
