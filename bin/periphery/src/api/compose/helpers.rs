@@ -18,7 +18,6 @@ use periphery_client::api::{
 };
 use resolver_api::Resolve;
 use tokio::fs;
-use uuid::Uuid;
 
 use crate::{
   api::Args, config::periphery_config, docker::docker_login,
@@ -152,9 +151,7 @@ pub async fn pull_or_clone_stack(
 
   let git_token = crate::helpers::git_token(git_token, &args)?;
 
-  let req_args = Args {
-    req_id: Uuid::new_v4(),
-  };
+  let req_args = Args;
   PullOrCloneRepo {
     args,
     git_token,

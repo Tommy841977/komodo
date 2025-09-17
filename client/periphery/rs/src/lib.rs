@@ -4,16 +4,16 @@ use bytes::Bytes;
 use cache::CloneCache;
 use resolver_api::HasResponse;
 use serde::{Serialize, de::DeserializeOwned};
+use tokio::sync::mpsc::Sender;
+use uuid::Uuid;
 
 pub mod api;
 pub mod connection;
+pub mod terminal;
 
 mod request;
-mod terminal;
 
 pub use request::request;
-use tokio::sync::mpsc::Sender;
-use uuid::Uuid;
 
 // Server id => Channel sender map
 pub type ResponseChannels =

@@ -105,7 +105,7 @@ fn handle_request(req_id: Uuid, bytes: Bytes) {
 
     let resolve_response = async {
       let (state, data) =
-        match request.resolve(&Args { req_id }).await {
+        match request.resolve(&Args).await {
           Ok(JsonBytes::Ok(res)) => (MessageState::Successful, res),
           Ok(JsonBytes::Err(e)) => (
             MessageState::Failed,

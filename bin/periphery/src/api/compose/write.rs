@@ -14,7 +14,6 @@ use periphery_client::api::{
 };
 use resolver_api::Resolve;
 use tokio::fs;
-use uuid::Uuid;
 
 use crate::{api::Args, config::periphery_config, helpers};
 
@@ -152,9 +151,7 @@ async fn write_stack_linked_repo<'a>(
   let on_pull = (!repo.config.on_pull.is_none())
     .then_some(repo.config.on_pull.clone());
 
-  let req_args = Args {
-    req_id: Uuid::new_v4(),
-  };
+  let req_args = Args;
   let clone_res = if stack.config.reclone {
     CloneRepo {
       args,
@@ -240,9 +237,7 @@ async fn write_stack_inline_repo(
 
   let git_token = stack_git_token(git_token, &args, &mut res)?;
 
-  let req_args = Args {
-    req_id: Uuid::new_v4(),
-  };
+  let req_args = Args;
   let clone_res = if stack.config.reclone {
     CloneRepo {
       args,

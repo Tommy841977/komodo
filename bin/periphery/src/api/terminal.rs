@@ -8,7 +8,10 @@ use komodo_client::{
   api::write::TerminalRecreateMode,
   entities::{KOMODO_EXIT_CODE, NoData, server::TerminalInfo},
 };
-use periphery_client::api::terminal::*;
+use periphery_client::{
+  api::terminal::*,
+  terminal::{END_OF_OUTPUT, START_OF_OUTPUT},
+};
 use resolver_api::Resolve;
 use serror::AddStatusCodeError;
 use tokio::sync::mpsc::channel;
@@ -388,7 +391,10 @@ async fn handle_terminal_forwarding(
   tokio::join!(ws_read, ws_write);
 
   // Clean up
-  terminal_channels().remove(&id).await;
+  if let Some((_, cancel)) = terminal_channels().remove(&id).await {
+    info!("Cancel called for {id}");
+    cancel.cancel();
+  }
   clean_up_terminals().await;
 }
 
@@ -452,7 +458,19 @@ async fn forward_execute_command_on_terminal_response(
   let ws_sender = ws_sender();
   loop {
     match stdout.next().await {
-      Some(Ok(line)) if line.as_str() == END_OF_OUTPUT => break,
+      Some(Ok(line)) if line.as_str() == END_OF_OUTPUT => {
+        if let Err(e) = ws_sender
+          .send(to_transport_bytes(
+            line.into(),
+            id,
+            MessageState::Terminal,
+          ))
+          .await
+        {
+          warn!("Got ws_sender send error on END_OF_OUTPUT | {e:?}");
+        }
+        break;
+      }
       Some(Ok(line)) => {
         if let Err(e) = ws_sender
           .send(to_transport_bytes(

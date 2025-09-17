@@ -14,7 +14,6 @@ use periphery_client::api::{
 use resolver_api::Resolve;
 use response::JsonBytes;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{config::periphery_config, docker::docker_client};
 
@@ -31,9 +30,7 @@ mod stats;
 mod volume;
 
 #[derive(Debug)]
-pub struct Args {
-  pub req_id: Uuid,
-}
+pub struct Args;
 
 #[derive(
   Serialize, Deserialize, Debug, Clone, Resolve, EnumVariants,

@@ -2794,7 +2794,6 @@ dependencies = [
  "komodo_client",
  "logger",
  "periphery_client",
- "pin-project-lite",
  "portable-pty",
  "resolver_api",
  "response",

@@ -1,11 +1,13 @@
 use std::{
   pin::Pin,
+  sync::Arc,
   task::{self, Poll},
 };
 
 use anyhow::Context;
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt};
+use cache::CloneCache;
+use futures_util::Stream;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use transport::bytes::data_from_transport_bytes;
 use uuid::Uuid;
@@ -109,10 +111,11 @@ impl PeripheryClient {
 
     response_channels.insert(id, response_sender).await;
 
-    let stream = ReceiverStream(response_receiever)
-      .map(|bytes| data_from_transport_bytes(bytes));
-
-    Ok(stream)
+    Ok(ReceiverStream {
+      id,
+      channels: response_channels,
+      receiver: response_receiever,
+    })
   }
 
   /// Executes command on specified container,
@@ -134,9 +137,7 @@ impl PeripheryClient {
     container: String,
     shell: String,
     command: String,
-  ) -> anyhow::Result<
-    impl Stream<Item = anyhow::Result<Bytes>> + 'static,
-  > {
+  ) -> anyhow::Result<ReceiverStream> {
     tracing::trace!(
       "sending request | type: ExecuteContainerExec | container: {container} | shell: {shell} | command: {command}",
     );
@@ -158,21 +159,55 @@ impl PeripheryClient {
 
     response_channels.insert(id, response_sender).await;
 
-    let stream = ReceiverStream(response_receiever)
-      .map(|bytes| data_from_transport_bytes(bytes));
-
-    Ok(stream)
+    Ok(ReceiverStream {
+      id,
+      channels: response_channels,
+      receiver: response_receiever,
+    })
   }
 }
 
-pub struct ReceiverStream<T>(Receiver<T>);
+/// Execute Sentinels
+pub const START_OF_OUTPUT: &str = "__KOMODO_START_OF_OUTPUT__";
+pub const END_OF_OUTPUT: &str = "__KOMODO_END_OF_OUTPUT__";
 
-impl<T> Stream for ReceiverStream<T> {
-  type Item = T;
+pub struct ReceiverStream {
+  id: Uuid,
+  channels: Arc<CloneCache<Uuid, Sender<Bytes>>>,
+  receiver: Receiver<Bytes>,
+}
+
+impl Stream for ReceiverStream {
+  type Item = anyhow::Result<Bytes>;
   fn poll_next(
     mut self: Pin<&mut Self>,
     cx: &mut task::Context<'_>,
-  ) -> Poll<Option<T>> {
-    self.0.poll_recv(cx)
+  ) -> Poll<Option<Self::Item>> {
+    match self.receiver.poll_recv(cx).map(|bytes| {
+      bytes.map(|bytes| data_from_transport_bytes(bytes))
+    }) {
+      Poll::Ready(Some(Ok(bytes))) if &bytes == END_OF_OUTPUT => {
+        self.cleanup();
+        Poll::Ready(None)
+      }
+      Poll::Ready(Some(Ok(bytes))) => Poll::Ready(Some(Ok(bytes))),
+      Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+      Poll::Ready(None) => {
+        self.cleanup();
+        Poll::Ready(None)
+      }
+      Poll::Pending => Poll::Pending,
+    }
+  }
+}
+
+impl ReceiverStream {
+  fn cleanup(&self) {
+    // Not the prettiest but it should be fine
+    let channels = self.channels.clone();
+    let id = self.id;
+    tokio::spawn(async move {
+      channels.remove(&id).await;
+    });
   }
 }

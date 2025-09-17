@@ -1,18 +1,14 @@
 use std::{
   collections::{HashMap, VecDeque},
-  pin::Pin,
   sync::{Arc, OnceLock},
-  task::Poll,
   time::Duration,
 };
 
 use anyhow::{Context, anyhow};
 use bytes::Bytes;
-use futures::Stream;
 use komodo_client::{
   api::write::TerminalRecreateMode, entities::server::TerminalInfo,
 };
-use pin_project_lite::pin_project;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
@@ -345,49 +341,5 @@ impl History {
 
   pub fn size_kb(&self) -> f64 {
     self.buf.read().unwrap().len() as f64 / 1024.0
-  }
-}
-
-/// Execute Sentinels
-pub const START_OF_OUTPUT: &str = "__KOMODO_START_OF_OUTPUT__";
-pub const END_OF_OUTPUT: &str = "__KOMODO_END_OF_OUTPUT__";
-
-pin_project! {
-  pub struct TerminalStream<S> { #[pin] pub stdout: S }
-}
-
-impl<S> Stream for TerminalStream<S>
-where
-  S:
-    Stream<Item = Result<String, tokio_util::codec::LinesCodecError>>,
-{
-  // Axum expects a stream of results
-  type Item = Result<String, String>;
-
-  fn poll_next(
-    self: Pin<&mut Self>,
-    cx: &mut std::task::Context<'_>,
-  ) -> Poll<Option<Self::Item>> {
-    let this = self.project();
-    match this.stdout.poll_next(cx) {
-      Poll::Ready(None) => {
-        // This is if a None comes in before END_OF_OUTPUT.
-        // This probably means the terminal has exited early,
-        // and needs to be cleaned up
-        tokio::spawn(async move { clean_up_terminals().await });
-        Poll::Ready(None)
-      }
-      Poll::Ready(Some(line)) => {
-        match line {
-          Ok(line) if line.as_str() == END_OF_OUTPUT => {
-            // Stop the stream on end sentinel
-            Poll::Ready(None)
-          }
-          Ok(line) => Poll::Ready(Some(Ok(line + "\n"))),
-          Err(e) => Poll::Ready(Some(Err(format!("{e:?}")))),
-        }
-      }
-      Poll::Pending => Poll::Pending,
-    }
   }
 }
