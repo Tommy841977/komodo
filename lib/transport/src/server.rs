@@ -1,15 +1,21 @@
+use anyhow::{Context, anyhow};
 use axum::{
-  extract::{WebSocketUpgrade, ws::Message},
+  extract::{
+    WebSocketUpgrade,
+    ws::{Message, WebSocket},
+  },
   http::StatusCode,
   response::Response,
 };
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serror::AddStatusCode;
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
-use crate::{TransportHandler, channel::BufferedReceiver};
+use crate::{
+  MessageState, TransportHandler, channel::BufferedReceiver,
+};
 
 /// Handles server side / inbound connection
 pub fn handle_server_connection<
@@ -24,8 +30,11 @@ pub fn handle_server_connection<
     .try_lock()
     .status_code(StatusCode::FORBIDDEN)?;
 
-  Ok(ws.on_upgrade(|socket| async move {
-    // TODO: Handle authentication exchange.
+  Ok(ws.on_upgrade(|mut socket| async move {
+    if let Err(e) = handle_login(&mut socket, |b| true).await {
+      warn!("Client failed to login | {e:#}");
+      return;
+    };
 
     let (mut ws_write, mut ws_read) = socket.split();
 
@@ -80,4 +89,45 @@ pub fn handle_server_connection<
       _ = handle_reads => {},
     };
   }))
+}
+
+async fn handle_login(
+  socket: &mut WebSocket,
+  validate: impl Fn(&[u8]) -> bool,
+) -> anyhow::Result<()> {
+  loop {
+    // Poll for next message
+    let msg = socket
+      .try_next()
+      .await
+      .context("Failed to receive login credentials")?
+      .context("Stream broken before login credentials received")?;
+    // Treat first message as credentials
+    let credentials = match &msg {
+      Message::Text(text) => text.as_bytes(),
+      Message::Binary(bytes) => &bytes,
+      Message::Close(frame) => {
+        return Err(anyhow!(
+          "Websocket close frame received during login | frame: {frame:?}"
+        ));
+      }
+      // Ignore others
+      _ => continue,
+    };
+    // Validate
+    if validate(credentials) {
+      // Send login confirmation
+      socket
+        .send(Message::Binary(MessageState::Successful.into()))
+        .await?;
+      return Ok(());
+    } else {
+      // Send login failure
+      socket
+        .send(Message::Binary(MessageState::Failed.into()))
+        .await?;
+      let _ = socket.close().await;
+      return Err(anyhow!("Received invalid credentials"));
+    }
+  }
 }

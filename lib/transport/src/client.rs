@@ -6,9 +6,9 @@ use std::{
   time::Duration,
 };
 
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio::{net::TcpStream, sync::RwLock};
 use tokio_tungstenite::{
@@ -17,7 +17,9 @@ use tokio_tungstenite::{
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use crate::{TransportHandler, channel::BufferedReceiver};
+use crate::{
+  MessageState, TransportHandler, channel::BufferedReceiver,
+};
 
 /// Handles client side / outbound connection
 pub async fn handle_client_connection<
@@ -29,7 +31,7 @@ pub async fn handle_client_connection<
   write_receiver: &mut BufferedReceiver<Bytes>,
 ) {
   loop {
-    let socket = match connect_websocket(address).await {
+    let mut socket = match connect_websocket(address).await {
       Ok(socket) => socket,
       Err(e) => {
         connection.set_error(e).await;
@@ -39,6 +41,15 @@ pub async fn handle_client_connection<
     };
 
     info!("Connected to {address}");
+
+    if let Err(e) = handle_login(&mut socket, Bytes::new()).await {
+      connection.set_error(e).await;
+      tokio::time::sleep(Duration::from_secs(5)).await;
+      continue;
+    };
+
+    info!("Logged into {address}");
+
     connection.connected.store(true, atomic::Ordering::Relaxed);
     connection.clear_error().await;
 
@@ -113,6 +124,44 @@ pub async fn handle_client_connection<
 
     warn!("Disconnnected from {address}");
     connection.connected.store(false, atomic::Ordering::Relaxed);
+  }
+}
+
+async fn handle_login(
+  socket: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+  credentials: Bytes,
+) -> anyhow::Result<()> {
+  socket
+    .send(Message::Binary(credentials))
+    .await
+    .context("Failed to send login credentials")?;
+
+  loop {
+    let response = socket
+      .try_next()
+      .await
+      .context("Failed to receive login response")?
+      .context("Stream broken before login response received")?;
+    let bytes = match &response {
+      Message::Text(text) => text.as_bytes(),
+      Message::Binary(bytes) => &bytes,
+      Message::Close(frame) => {
+        return Err(anyhow!(
+          "Websocket close frame received during login | frame: {frame:?}"
+        ));
+      }
+      // Ignore others
+      _ => continue,
+    };
+    let state = bytes
+      .first()
+      .map(|b| MessageState::from_byte(*b))
+      .context("Login response is empty")?;
+    if matches!(state, MessageState::Successful) {
+      return Ok(());
+    } else {
+      return Err(anyhow!("Failed to login | Invalid credentails"));
+    }
   }
 }
 

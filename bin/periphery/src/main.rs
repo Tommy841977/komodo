@@ -1,21 +1,14 @@
 #[macro_use]
 extern crate tracing;
 
-//
-use std::{net::SocketAddr, str::FromStr};
-
-use anyhow::Context;
-use axum_server::tls_rustls::RustlsConfig;
-use config::periphery_config;
-
 mod api;
 mod config;
+mod connection;
 mod docker;
 mod helpers;
-mod router;
+mod server;
 mod stats;
 mod terminal;
-mod connection;
 
 async fn app() -> anyhow::Result<()> {
   dotenvy::dotenv().ok();
@@ -24,7 +17,7 @@ async fn app() -> anyhow::Result<()> {
 
   info!("Komodo Periphery version: v{}", env!("CARGO_PKG_VERSION"));
 
-  if periphery_config().pretty_startup_config {
+  if config.pretty_startup_config {
     info!("{:#?}", config.sanitized());
   } else {
     info!("{:?}", config.sanitized());
@@ -34,41 +27,7 @@ async fn app() -> anyhow::Result<()> {
   docker::stats::spawn_polling_thread();
   connection::init_response_channel();
 
-  let addr = format!(
-    "{}:{}",
-    config::periphery_config().bind_ip,
-    config::periphery_config().port
-  );
-
-  let socket_addr = SocketAddr::from_str(&addr)
-    .context("failed to parse listen address")?;
-
-  let app = router::router()
-    .into_make_service_with_connect_info::<SocketAddr>();
-
-  if config.ssl_enabled {
-    info!("🔒 Periphery SSL Enabled");
-    rustls::crypto::ring::default_provider()
-      .install_default()
-      .expect("failed to install default rustls CryptoProvider");
-    helpers::ensure_ssl_certs().await;
-    info!("Komodo Periphery starting on https://{}", socket_addr);
-    let ssl_config = RustlsConfig::from_pem_file(
-      config.ssl_cert_file(),
-      config.ssl_key_file(),
-    )
-    .await
-    .context("Invalid ssl cert / key")?;
-    axum_server::bind_rustls(socket_addr, ssl_config)
-      .serve(app)
-      .await?
-  } else {
-    info!("🔓 Periphery SSL Disabled");
-    info!("Komodo Periphery starting on http://{}", socket_addr);
-    axum_server::bind(socket_addr).serve(app).await?
-  }
-
-  Ok(())
+  server::run_connection_server().await
 }
 
 #[tokio::main]

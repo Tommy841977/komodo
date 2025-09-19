@@ -8,15 +8,51 @@ use axum::{
   response::Response,
   routing::get,
 };
+use axum_server::tls_rustls::RustlsConfig;
 use serror::{AddStatusCode, AddStatusCodeError};
-use std::net::{IpAddr, SocketAddr};
+use std::{
+  net::{IpAddr, SocketAddr},
+  str::FromStr,
+};
 
 use crate::config::periphery_config;
 
-pub fn router() -> Router {
-  Router::new()
+pub async fn run_connection_server() -> anyhow::Result<()> {
+  let config = periphery_config();
+
+  let addr = format!("{}:{}", config.bind_ip, config.port);
+
+  let socket_addr = SocketAddr::from_str(&addr)
+    .context("failed to parse listen address")?;
+
+  let app = Router::new()
     .route("/", get(crate::connection::inbound_connection))
     .layer(middleware::from_fn(guard_request_by_ip))
+    .into_make_service_with_connect_info::<SocketAddr>();
+
+  if config.ssl_enabled {
+    info!("🔒 Periphery SSL Enabled");
+    rustls::crypto::ring::default_provider()
+      .install_default()
+      .expect("failed to install default rustls CryptoProvider");
+    crate::helpers::ensure_ssl_certs().await;
+    info!("Komodo Periphery starting on https://{}", socket_addr);
+    let ssl_config = RustlsConfig::from_pem_file(
+      config.ssl_cert_file(),
+      config.ssl_key_file(),
+    )
+    .await
+    .context("Invalid ssl cert / key")?;
+    axum_server::bind_rustls(socket_addr, ssl_config)
+      .serve(app)
+      .await?
+  } else {
+    info!("🔓 Periphery SSL Disabled");
+    info!("Komodo Periphery starting on http://{}", socket_addr);
+    axum_server::bind(socket_addr).serve(app).await?
+  }
+
+  Ok(())
 }
 
 async fn guard_request_by_ip(

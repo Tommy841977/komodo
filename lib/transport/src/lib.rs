@@ -14,11 +14,15 @@ pub enum MessageState {
   Terminal,
 }
 
+impl From<MessageState> for Bytes {
+  fn from(value: MessageState) -> Self {
+    Bytes::from_owner([value.as_byte()])
+  }
+}
+
 pub trait TransportHandler {
   fn handle_incoming_bytes(
     &self,
     bytes: Bytes,
   ) -> impl Future<Output = ()> + Send;
 }
-
-
