@@ -1,14 +1,14 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
+use axum::http::HeaderValue;
 use bytes::Bytes;
 use komodo_client::entities::server::Server;
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
-use tokio::net::TcpStream;
-use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::Connector;
 use tracing::{info, warn};
 use transport::{
-  auth::handle_client_side_login,
+  auth2::{ConnectionIdentifiers, handle_client_side_login},
   fix_ws_address,
   websocket::{
     WebsocketMessage, WebsocketReceiver as _, WebsocketSender as _,
@@ -95,6 +95,11 @@ async fn spawn_client_connection(
   server_id: String,
   address: String,
 ) -> anyhow::Result<()> {
+  let url = ::url::Url::parse(&address)
+    .context("Failed to parse server address")?;
+  let host: Vec<u8> =
+    url.host().context("url has no host")?.to_string().into();
+
   info!("Spawning connection for {server_id}");
 
   let handler = MessageHandler::new(&server_id).await;
@@ -111,19 +116,30 @@ async fn spawn_client_connection(
 
   tokio::spawn(async move {
     loop {
-      let mut socket = match connect_websocket(&address).await {
-        Ok(socket) => TungsteniteWebsocket(socket),
-        Err(e) => {
-          connection.set_error(e).await;
-          tokio::time::sleep(Duration::from_secs(5)).await;
-          continue;
-        }
-      };
+      let (mut socket, accept) =
+        match connect_websocket(&address).await {
+          Ok(res) => res,
+          Err(e) => {
+            connection.set_error(e).await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            continue;
+          }
+        };
 
       info!("PERIPHERY: Connected to {address}");
 
-      if let Err(e) =
-        handle_client_side_login(&mut socket, Bytes::new()).await
+      let id = ConnectionIdentifiers {
+        host: &host,
+        accept: accept.as_bytes(),
+        query: &[],
+      };
+
+      if let Err(e) = handle_client_side_login(
+        &mut socket,
+        id,
+        b"RANDOM_PRIVATE_KEY",
+      )
+      .await
       {
         connection.set_error(e).await;
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -207,8 +223,8 @@ async fn spawn_client_connection(
 
 pub async fn connect_websocket(
   url: &str,
-) -> anyhow::Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-  let (stream, _) = if url.starts_with("wss") {
+) -> anyhow::Result<(TungsteniteWebsocket, HeaderValue)> {
+  let (ws, mut response) = if url.starts_with("wss") {
     tokio_tungstenite::connect_async_tls_with_config(
       url,
       None,
@@ -232,7 +248,12 @@ pub async fn connect_websocket(
     )?
   };
 
-  Ok(stream)
+  let accept = response
+    .headers_mut()
+    .remove("sec-websocket-accept")
+    .context("sec-websocket-accept")?;
+
+  Ok((TungsteniteWebsocket(ws), accept))
 }
 
 #[derive(Debug)]

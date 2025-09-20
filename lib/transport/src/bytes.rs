@@ -2,7 +2,7 @@ use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use uuid::Uuid;
 
-use crate::{MessageState, auth::AuthType};
+use crate::{MessageState, auth2::AuthType};
 
 /// Serializes data + channel id + state to byte vec.
 /// The last byte is the State, and the 16 before that is the Uuid.

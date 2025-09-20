@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use axum::http::HeaderValue;
 use bytes::Bytes;
 use transport::{
-  auth::handle_client_side_login,
+  auth2::{ConnectionIdentifiers, handle_client_side_login},
   fix_ws_address,
   websocket::{
     WebsocketMessage, WebsocketReceiver, WebsocketSender,
@@ -33,16 +34,23 @@ pub async fn handler(
     "{core_host}/ws/periphery?server={}",
     urlencoding::encode(connect_as)
   );
+  let parsed_url =
+    ::url::Url::parse(&url).context("Failed to parse ws url")?;
+  let host: Vec<u8> = parsed_url
+    .host()
+    .context("url has no host")?
+    .to_string()
+    .into();
+  let query =
+    parsed_url.query().context("url has no query")?.as_bytes();
 
   info!("Initiating outbound connection to {url}");
 
   loop {
-    let mut socket = match tokio_tungstenite::connect_async(&url)
-      .await
-    {
-      Ok((socket, _)) => TungsteniteWebsocket(socket),
+    let (mut socket, accept) = match connect_websocket(&url).await {
+      Ok(res) => res,
       Err(e) => {
-        warn!("failed to connect to websocket | url: {url} | {e:?}");
+        warn!("{e:#}");
         tokio::time::sleep(Duration::from_secs(5)).await;
         continue;
       }
@@ -50,8 +58,16 @@ pub async fn handler(
 
     info!("Connected to core connection websocket");
 
+    let id = ConnectionIdentifiers {
+      host: &host,
+      accept: accept.as_bytes(),
+      query,
+    };
+
+    // TODO: source the pk
     if let Err(e) =
-      handle_client_side_login(&mut socket, Bytes::new()).await
+      handle_client_side_login(&mut socket, id, b"RANDOM_PRIVATE_KEY")
+        .await
     {
       warn!("Failed to login | {e:#}");
       tokio::time::sleep(Duration::from_secs(5)).await;
@@ -110,4 +126,17 @@ pub async fn handler(
       _ = handle_reads => {},
     };
   }
+}
+
+async fn connect_websocket(
+  url: &str,
+) -> anyhow::Result<(TungsteniteWebsocket, HeaderValue)> {
+  let (ws, mut response) = tokio_tungstenite::connect_async(url)
+    .await
+    .with_context(|| format!("Failed to connect to {url}"))?;
+  let accept = response
+    .headers_mut()
+    .remove("sec-websocket-accept")
+    .context("sec-websocket-accept")?;
+  Ok((TungsteniteWebsocket(ws), accept))
 }

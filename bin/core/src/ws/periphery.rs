@@ -1,5 +1,6 @@
 use axum::{
   extract::{Query, WebSocketUpgrade},
+  http::HeaderMap,
   response::Response,
 };
 use komodo_client::entities::server::Server;
@@ -9,8 +10,13 @@ pub async fn handler(
   Query(PeripheryConnectionQuery { server }): Query<
     PeripheryConnectionQuery,
   >,
+  headers: HeaderMap,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
-  let server = crate::resource::get::<Server>(&server).await?;
-  periphery_client::connection::server::handler(server.id, ws).await
+  let server_id = crate::resource::get::<Server>(&server).await?.id;
+  let query = format!("server={}", urlencoding::encode(&server));
+  periphery_client::connection::server::handler(
+    server_id, headers, query, ws,
+  )
+  .await
 }

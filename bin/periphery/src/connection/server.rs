@@ -8,7 +8,7 @@ use axum::{
   Router,
   body::Body,
   extract::{ConnectInfo, WebSocketUpgrade},
-  http::{Request, StatusCode},
+  http::{HeaderMap, Request, StatusCode},
   middleware::{self, Next},
   response::Response,
   routing::get,
@@ -17,7 +17,9 @@ use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
-  auth::handle_server_side_login,
+  auth2::{
+    ConnectionIdentifiers, compute_accept, handle_server_side_login,
+  },
   websocket::{
     WebsocketMessage, WebsocketReceiver, WebsocketSender,
     axum::AxumWebsocket,
@@ -67,17 +69,38 @@ pub async fn run() -> anyhow::Result<()> {
   Ok(())
 }
 
-async fn handler(ws: WebSocketUpgrade) -> serror::Result<Response> {
+async fn handler(
+  mut headers: HeaderMap,
+  ws: WebSocketUpgrade,
+) -> serror::Result<Response> {
   // Limits to only one active websocket connection.
   let mut write_receiver = ws_receiver()
     .try_lock()
     .status_code(StatusCode::FORBIDDEN)?;
 
+  let host = headers
+    .remove("x-forwarded-host")
+    .or(headers.remove("host"))
+    .context("Failed to get connection host")
+    .status_code(StatusCode::UNAUTHORIZED)?;
+  let ws_key = headers
+    .remove("sec-websocket-key")
+    .context("Headers do not contain Sec-Websocket-Key")
+    .status_code(StatusCode::UNAUTHORIZED)?;
+  let ws_accept = compute_accept(ws_key.as_bytes());
+
   Ok(ws.on_upgrade(|socket| async move {
     let mut socket = AxumWebsocket(socket);
 
+    let id = ConnectionIdentifiers {
+      host: host.as_bytes(),
+      query: &[],
+      accept: ws_accept.as_bytes(),
+    };
+
     if let Err(e) =
-      handle_server_side_login(&mut socket, |b| true).await
+      handle_server_side_login(&mut socket, id, b"TEMP_SERVER_PK")
+        .await
     {
       warn!("Client failed to login | {e:#}");
       return;

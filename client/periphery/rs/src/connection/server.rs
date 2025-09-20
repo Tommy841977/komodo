@@ -1,8 +1,16 @@
-use axum::{extract::WebSocketUpgrade, response::Response};
+use anyhow::Context;
+use axum::{
+  extract::WebSocketUpgrade,
+  http::{HeaderMap, StatusCode},
+  response::Response,
+};
 use bytes::Bytes;
+use serror::AddStatusCode;
 use tracing::{error, info, warn};
 use transport::{
-  auth::handle_server_side_login,
+  auth2::{
+    ConnectionIdentifiers, compute_accept, handle_server_side_login,
+  },
   websocket::{
     WebsocketMessage, WebsocketReceiver, WebsocketSender,
     axum::AxumWebsocket,
@@ -15,8 +23,21 @@ use crate::connection::{
 
 pub async fn handler(
   server_id: String,
+  mut headers: HeaderMap,
+  query: String,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
+  let host = headers
+    .remove("x-forwarded-host")
+    .or(headers.remove("host"))
+    .context("Failed to get connection host")
+    .status_code(StatusCode::UNAUTHORIZED)?;
+  let ws_key = headers
+    .get("sec-websocket-key")
+    .context("Headers do not contain Sec-Websocket-Key")
+    .status_code(StatusCode::UNAUTHORIZED)?;
+  let ws_accept = compute_accept(ws_key.as_bytes());
+
   let handler = MessageHandler::new(&server_id).await;
 
   let (connection, mut write_receiver) =
@@ -31,9 +52,17 @@ pub async fn handler(
 
   Ok(ws.on_upgrade(|socket| async move {
     let mut socket = AxumWebsocket(socket);
-    
+
+    let id = ConnectionIdentifiers {
+      host: host.as_bytes(),
+      query: query.as_bytes(),
+      accept: ws_accept.as_bytes(),
+    };
+
+    // TODO: use proper private key
     if let Err(e) =
-      handle_server_side_login(&mut socket, |b| true).await
+      handle_server_side_login(&mut socket, id, b"RANDOM_SERVER_PK")
+        .await
     {
       warn!("PERIPHERY: Client failed to login | {e:#}");
       connection.set_error(e).await;

@@ -1,6 +1,7 @@
 //! Wrappers to normalize behavior of websockets between Tungstenite and Axum,
 //! as well as streamline process of handling socket messages.
 
+use anyhow::anyhow;
 use bytes::Bytes;
 
 pub mod axum;
@@ -29,6 +30,24 @@ pub trait Websocket {
   ) -> impl Future<
     Output = Result<WebsocketMessage<Self::CloseFrame>, Self::Error>,
   >;
+
+  /// Looping receiver for websocket messages which only returns
+  /// on significant messages.
+  fn recv_bytes(
+    &mut self,
+  ) -> impl Future<Output = Result<Bytes, anyhow::Error>> {
+    async {
+      match self.recv().await? {
+        WebsocketMessage::Binary(bytes) => Ok(bytes),
+        WebsocketMessage::Close(frame) => {
+          Err(anyhow!("Connection closed with framed: {frame:?}"))
+        }
+        WebsocketMessage::Closed => {
+          Err(anyhow!("Connection already closed"))
+        }
+      }
+    }
+  }
 
   /// Streamlined sending on bytes
   fn send(
