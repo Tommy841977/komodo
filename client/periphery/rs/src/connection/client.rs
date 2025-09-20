@@ -2,15 +2,19 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
 use komodo_client::entities::server::Server;
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio::net::TcpStream;
-use tokio_tungstenite::{
-  Connector, MaybeTlsStream, WebSocketStream, tungstenite::Message,
-};
+use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tracing::{info, warn};
-use transport::{auth::handle_client_side_login, fix_ws_address};
+use transport::{
+  auth::handle_client_side_login,
+  fix_ws_address,
+  websocket::{
+    WebsocketMessage, WebsocketReceiver as _, WebsocketSender as _,
+    tungstenite::TungsteniteWebsocket,
+  },
+};
 
 use crate::{
   connection::{
@@ -26,10 +30,11 @@ pub async fn manage_client_connections(servers: &[Server]) {
 
   let specs = servers
     .iter()
+    .filter(|s| s.config.enabled)
     .map(|s| (&s.id, &s.config.address))
     .collect::<HashMap<_, _>>();
 
-  // Clear non specced server connections / channels
+  // Clear non specced / enabled server connections
   for (server_id, connection) in
     periphery_connections.get_entries().await
   {
@@ -107,7 +112,7 @@ async fn spawn_client_connection(
   tokio::spawn(async move {
     loop {
       let mut socket = match connect_websocket(&address).await {
-        Ok(socket) => socket,
+        Ok(socket) => TungsteniteWebsocket(socket),
         Err(e) => {
           connection.set_error(e).await;
           tokio::time::sleep(Duration::from_secs(5)).await;
@@ -144,9 +149,7 @@ async fn spawn_client_connection(
               info!("Got None over request reciever for {address}");
               break;
             }
-            Some(request) => {
-              Message::Binary(Bytes::copy_from_slice(request))
-            }
+            Some(request) => Bytes::copy_from_slice(request),
           };
 
           match ws_write.send(message).await {
@@ -158,40 +161,33 @@ async fn spawn_client_connection(
           }
         }
         // Cancel again if not already
-        let _ = ws_write.close().await;
+        let _ = ws_write.close(None).await;
         connection.cancel();
       };
 
       let handle_reads = async {
         loop {
           let next = tokio::select! {
-            next = ws_read.next() => next,
+            next = ws_read.recv() => next,
             _ = connection.cancel.cancelled() => break,
           };
 
           match next {
-            Some(Ok(Message::Binary(bytes))) => {
+            Ok(WebsocketMessage::Binary(bytes)) => {
               handler.handle_incoming_bytes(bytes).await
             }
-            Some(Ok(Message::Close(frame))) => {
+            Ok(WebsocketMessage::Close(frame)) => {
               warn!(
                 "Connection to {address} broken with frame: {frame:?}"
               );
               break;
             }
-            Some(Err(e)) => {
+            Ok(WebsocketMessage::Closed) => {}
+            Err(e) => {
               warn!(
                 "Connection to {address} broken with error: {e:?}"
               );
               break;
-            }
-            None => {
-              warn!("Connection to {address} closed");
-              break;
-            }
-            // Can ignore other message types
-            Some(Ok(_)) => {
-              continue;
             }
           };
         }

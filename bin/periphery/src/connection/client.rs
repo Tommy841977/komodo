@@ -2,9 +2,14 @@ use std::time::Duration;
 
 use anyhow::Context;
 use bytes::Bytes;
-use futures::{SinkExt, StreamExt};
-use tokio_tungstenite::tungstenite::Message;
-use transport::{auth::handle_client_side_login, fix_ws_address};
+use transport::{
+  auth::handle_client_side_login,
+  fix_ws_address,
+  websocket::{
+    WebsocketMessage, WebsocketReceiver, WebsocketSender,
+    tungstenite::TungsteniteWebsocket,
+  },
+};
 
 use crate::connection::{handle_incoming_bytes, ws_receiver};
 
@@ -35,7 +40,7 @@ pub async fn handler(
     let mut socket = match tokio_tungstenite::connect_async(&url)
       .await
     {
-      Ok((socket, _)) => socket,
+      Ok((socket, _)) => TungsteniteWebsocket(socket),
       Err(e) => {
         warn!("failed to connect to websocket | url: {url} | {e:?}");
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -63,7 +68,7 @@ pub async fn handler(
           // Sender Dropped (shouldn't happen, it is static).
           None => break,
           // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Message::Binary(Bytes::copy_from_slice(msg)),
+          Some(msg) => Bytes::copy_from_slice(msg),
         };
         match ws_write.send(msg).await {
           // Clears the stored message from receiver buffer.
@@ -71,7 +76,7 @@ pub async fn handler(
           Ok(_) => write_receiver.clear_buffer(),
           Err(e) => {
             warn!("Failed to send response | {e:?}");
-            let _ = ws_write.close().await;
+            let _ = ws_write.close(None).await;
             break;
           }
         }
@@ -80,24 +85,21 @@ pub async fn handler(
 
     let handle_reads = async {
       loop {
-        match ws_read.next().await {
-          // Incoming core msg
-          Some(Ok(Message::Binary(bytes))) => {
+        match ws_read.recv().await {
+          Ok(WebsocketMessage::Binary(bytes)) => {
             handle_incoming_bytes(bytes).await
           }
-          // Disconnection cases.
-          Some(Ok(Message::Close(frame))) => {
+          Ok(WebsocketMessage::Close(frame)) => {
             warn!("Connection closed with frame: {frame:?}");
             break;
           }
-          None => break,
-          Some(Err(e)) => {
-            error!("Failed to read websocket message | {e:?}");
+          Ok(WebsocketMessage::Closed) => {
+            warn!("Connection already closed");
             break;
           }
-          // Can ignore the rest
-          _ => {
-            continue;
+          Err(e) => {
+            error!("Failed to read websocket message | {e:?}");
+            break;
           }
         };
       }

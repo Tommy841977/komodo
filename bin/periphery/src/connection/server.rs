@@ -7,7 +7,7 @@ use anyhow::{Context, anyhow};
 use axum::{
   Router,
   body::Body,
-  extract::{ConnectInfo, WebSocketUpgrade, ws::Message},
+  extract::{ConnectInfo, WebSocketUpgrade},
   http::{Request, StatusCode},
   middleware::{self, Next},
   response::Response,
@@ -15,9 +15,14 @@ use axum::{
 };
 use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
-use futures::{SinkExt, StreamExt};
 use serror::{AddStatusCode, AddStatusCodeError};
-use transport::auth::handle_server_side_login;
+use transport::{
+  auth::handle_server_side_login,
+  websocket::{
+    WebsocketMessage, WebsocketReceiver, WebsocketSender,
+    axum::AxumWebsocket,
+  },
+};
 
 use crate::{
   config::periphery_config,
@@ -68,7 +73,9 @@ async fn handler(ws: WebSocketUpgrade) -> serror::Result<Response> {
     .try_lock()
     .status_code(StatusCode::FORBIDDEN)?;
 
-  Ok(ws.on_upgrade(|mut socket| async move {
+  Ok(ws.on_upgrade(|socket| async move {
+    let mut socket = AxumWebsocket(socket);
+
     if let Err(e) =
       handle_server_side_login(&mut socket, |b| true).await
     {
@@ -84,7 +91,7 @@ async fn handler(ws: WebSocketUpgrade) -> serror::Result<Response> {
           // Sender Dropped (shouldn't happen, it is static).
           None => break,
           // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Message::Binary(Bytes::copy_from_slice(msg)),
+          Some(msg) => Bytes::copy_from_slice(msg),
         };
         match ws_write.send(msg).await {
           // Clears the stored message from receiver buffer.
@@ -92,7 +99,7 @@ async fn handler(ws: WebSocketUpgrade) -> serror::Result<Response> {
           Ok(_) => write_receiver.clear_buffer(),
           Err(e) => {
             warn!("Failed to send response | {e:?}");
-            let _ = ws_write.close().await;
+            let _ = ws_write.close(None).await;
             break;
           }
         }
@@ -101,24 +108,21 @@ async fn handler(ws: WebSocketUpgrade) -> serror::Result<Response> {
 
     let handle_reads = async {
       loop {
-        match ws_read.next().await {
-          // Incoming core msg
-          Some(Ok(Message::Binary(bytes))) => {
+        match ws_read.recv().await {
+          Ok(WebsocketMessage::Binary(bytes)) => {
             handle_incoming_bytes(bytes).await
           }
-          // Disconnection cases.
-          Some(Ok(Message::Close(frame))) => {
+          Ok(WebsocketMessage::Close(frame)) => {
             warn!("Connection closed with frame: {frame:?}");
             break;
           }
-          None => break,
-          Some(Err(e)) => {
-            error!("Failed to read websocket message | {e:?}");
+          Ok(WebsocketMessage::Closed) => {
+            warn!("Connection already closed");
             break;
           }
-          // Can ignore the rest
-          _ => {
-            continue;
+          Err(e) => {
+            error!("Failed to read websocket message | {e:?}");
+            break;
           }
         };
       }

@@ -4,14 +4,15 @@ use serde::{Deserialize, Serialize};
 pub mod auth;
 pub mod bytes;
 pub mod channel;
+pub mod websocket;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MessageState {
-  Successful,
-  Failed,
-  Request,
-  InProgress,
-  Terminal,
+  Successful = 0,
+  Failed = 1,
+  Terminal = 2,
+  Request = 3,
+  InProgress = 4,
 }
 
 impl From<MessageState> for Bytes {

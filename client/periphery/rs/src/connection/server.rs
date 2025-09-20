@@ -1,15 +1,13 @@
-use anyhow::{Context, anyhow};
-use axum::{
-  extract::{
-    WebSocketUpgrade,
-    ws::{Message, WebSocket},
-  },
-  response::Response,
-};
+use axum::{extract::WebSocketUpgrade, response::Response};
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use tracing::{error, info, warn};
-use transport::{MessageState, auth::handle_server_side_login};
+use transport::{
+  auth::handle_server_side_login,
+  websocket::{
+    WebsocketMessage, WebsocketReceiver, WebsocketSender,
+    axum::AxumWebsocket,
+  },
+};
 
 use crate::connection::{
   MessageHandler, PeripheryConnection, periphery_connections,
@@ -31,7 +29,9 @@ pub async fn handler(
     existing_connection.cancel();
   }
 
-  Ok(ws.on_upgrade(|mut socket| async move {
+  Ok(ws.on_upgrade(|socket| async move {
+    let mut socket = AxumWebsocket(socket);
+    
     if let Err(e) =
       handle_server_side_login(&mut socket, |b| true).await
     {
@@ -61,7 +61,7 @@ pub async fn handler(
           // Sender Dropped (shouldn't happen, a reference is held on 'connection').
           None => break,
           // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Message::Binary(Bytes::copy_from_slice(msg)),
+          Some(msg) => Bytes::copy_from_slice(msg),
         };
 
         match ws_write.send(msg).await {
@@ -75,14 +75,14 @@ pub async fn handler(
         }
       }
       // Cancel again if not already
-      let _ = ws_write.close().await;
+      let _ = ws_write.close(None).await;
       connection.cancel();
     };
 
     let handle_reads = async {
       loop {
         let next = tokio::select! {
-          next = ws_read.next() => next,
+          next = ws_read.recv() => next,
           _ = connection.cancel.cancelled() => {
             info!("READ: Connection cancelled");
             break
@@ -90,23 +90,20 @@ pub async fn handler(
         };
 
         match next {
-          // Incoming core msg
-          Some(Ok(Message::Binary(bytes))) => {
+          Ok(WebsocketMessage::Binary(bytes)) => {
             handler.handle_incoming_bytes(bytes).await
           }
-          // Disconnection cases.
-          Some(Ok(Message::Close(frame))) => {
+          Ok(WebsocketMessage::Close(frame)) => {
             warn!("Connection closed with frame: {frame:?}");
             break;
           }
-          None => break,
-          Some(Err(e)) => {
-            error!("Failed to read websocket message | {e:?}");
+          Ok(WebsocketMessage::Closed) => {
+            warn!("Connection already closed");
             break;
           }
-          // Can ignore the rest
-          _ => {
-            continue;
+          Err(e) => {
+            error!("Failed to read websocket message | {e:?}");
+            break;
           }
         };
       }
