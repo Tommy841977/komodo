@@ -8,7 +8,7 @@ use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
 use transport::{
-  auth2::{ConnectionIdentifiers, handle_client_side_login},
+  auth::{ConnectionIdentifiers, handle_client_side_login},
   fix_ws_address,
   websocket::{
     WebsocketMessage, WebsocketReceiver as _, WebsocketSender as _,

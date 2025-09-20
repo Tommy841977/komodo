@@ -4,7 +4,7 @@ use anyhow::Context;
 use axum::http::HeaderValue;
 use bytes::Bytes;
 use transport::{
-  auth2::{ConnectionIdentifiers, handle_client_side_login},
+  auth::{ConnectionIdentifiers, handle_client_side_login},
   fix_ws_address,
   websocket::{
     WebsocketMessage, WebsocketReceiver, WebsocketSender,

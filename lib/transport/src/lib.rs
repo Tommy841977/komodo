@@ -2,7 +2,6 @@ use ::bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 pub mod auth;
-pub mod auth2;
 pub mod bytes;
 pub mod channel;
 pub mod websocket;

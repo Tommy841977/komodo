@@ -8,7 +8,7 @@ use bytes::Bytes;
 use serror::AddStatusCode;
 use tracing::{error, info, warn};
 use transport::{
-  auth2::{
+  auth::{
     ConnectionIdentifiers, compute_accept, handle_server_side_login,
   },
   websocket::{

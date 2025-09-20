@@ -17,7 +17,7 @@ use axum_server::tls_rustls::RustlsConfig;
 use bytes::Bytes;
 use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
-  auth2::{
+  auth::{
     ConnectionIdentifiers, compute_accept, handle_server_side_login,
   },
   websocket::{
