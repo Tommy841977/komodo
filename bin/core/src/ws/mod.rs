@@ -16,7 +16,7 @@ use komodo_client::{
 };
 use periphery_client::{
   PeripheryClient, api::terminal::DisconnectTerminal,
-  periphery_response_channels,
+  periphery_channels,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
@@ -35,6 +35,9 @@ mod update;
 
 pub fn router() -> Router {
   Router::new()
+    // Periphery facing
+    .route("/periphery", get(periphery::handler))
+    // User facing
     .route("/update", get(update::handler))
     .route("/terminal", get(terminal::handler))
     .route("/container/terminal", get(container::terminal))
@@ -293,7 +296,7 @@ async fn forward_ws_channel(
     )
   }
   if let Some(response_channels) =
-    periphery_response_channels().get(&periphery.id).await
+    periphery_channels().get(&periphery.id).await
   {
     response_channels.remove(&periphery_connection_id).await;
   }

@@ -57,6 +57,8 @@ pub fn periphery_config() -> &'static PeripheryConfig {
     };
 
     PeripheryConfig {
+      core_host: env.periphery_core_host.or(config.core_host),
+      connect_as: env.periphery_connect_as.or(config.connect_as),
       port: env.periphery_port.unwrap_or(config.port),
       bind_ip: env.periphery_bind_ip.unwrap_or(config.bind_ip),
       root_directory: env

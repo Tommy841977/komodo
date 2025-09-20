@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
   PeripheryClient, api::terminal::*,
-  connection::periphery_connections, periphery_response_channels,
+  connection::periphery_connections, periphery_channels,
 };
 
 impl PeripheryClient {
@@ -36,13 +36,12 @@ impl PeripheryClient {
       .await
       .context("Failed to create terminal connection")?;
 
-    let response_channels = periphery_response_channels()
-      .get_or_insert_default(&self.id)
-      .await;
+    let response_channels =
+      periphery_channels().get_or_insert_default(&self.id).await;
     let (response_sender, response_receiever) = channel(1000);
     response_channels.insert(id, response_sender).await;
 
-    Ok((id, connection.request_sender.clone(), response_receiever))
+    Ok((id, connection.write_sender.clone(), response_receiever))
   }
 
   pub async fn connect_container_exec(
@@ -64,13 +63,12 @@ impl PeripheryClient {
       .await
       .context("Failed to create container exec connection")?;
 
-    let response_channels = periphery_response_channels()
-      .get_or_insert_default(&self.id)
-      .await;
+    let response_channels =
+      periphery_channels().get_or_insert_default(&self.id).await;
     let (response_sender, response_receiever) = channel(1000);
     response_channels.insert(id, response_sender).await;
 
-    Ok((id, connection.request_sender.clone(), response_receiever))
+    Ok((id, connection.write_sender.clone(), response_receiever))
   }
 
   /// Executes command on specified terminal,
@@ -103,9 +101,8 @@ impl PeripheryClient {
       .await
       .context("Failed to create execute terminal connection")?;
 
-    let response_channels = periphery_response_channels()
-      .get_or_insert_default(&self.id)
-      .await;
+    let response_channels =
+      periphery_channels().get_or_insert_default(&self.id).await;
 
     let (response_sender, response_receiever) = channel(1000);
 
@@ -151,9 +148,8 @@ impl PeripheryClient {
       .await
       .context("Failed to create execute terminal connection")?;
 
-    let response_channels = periphery_response_channels()
-      .get_or_insert_default(&self.id)
-      .await;
+    let response_channels =
+      periphery_channels().get_or_insert_default(&self.id).await;
 
     let (response_sender, response_receiever) = channel(1000);
 

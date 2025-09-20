@@ -1,6 +1,5 @@
 use std::{sync::OnceLock, time::Duration};
 
-use axum::{extract::WebSocketUpgrade, response::Response};
 use bytes::Bytes;
 use cache::CloneCache;
 use resolver_api::Resolve;
@@ -9,7 +8,7 @@ use serror::serialize_error_bytes;
 use tokio::sync::{Mutex, mpsc::Sender};
 use tokio_util::sync::CancellationToken;
 use transport::{
-  MessageState, TransportHandler,
+  MessageState,
   bytes::{
     data_from_transport_bytes, id_state_from_transport_bytes,
     to_transport_bytes,
@@ -19,6 +18,9 @@ use transport::{
 use uuid::Uuid;
 
 use crate::api::{Args, PeripheryRequest};
+
+pub mod client;
+pub mod server;
 
 static WS_SENDER: OnceLock<Sender<Bytes>> = OnceLock::new();
 pub fn ws_sender() -> &'static Sender<Bytes> {
@@ -48,39 +50,25 @@ pub fn init_response_channel() {
     .expect("response_receiver initialized more than once");
 }
 
-pub async fn inbound_connection(
-  ws: WebSocketUpgrade,
-) -> serror::Result<Response> {
-  transport::server::handle_server_connection(
-    ws,
-    PeripheryTransportHandler,
-    ws_receiver(),
-  )
-}
-
-struct PeripheryTransportHandler;
-
-impl TransportHandler for PeripheryTransportHandler {
-  async fn handle_incoming_bytes(&self, bytes: Bytes) {
-    // Maybe wrap all of this on tokio spawn
-    let (id, state) = match id_state_from_transport_bytes(&bytes) {
-      Ok(res) => res,
-      Err(e) => {
-        // TODO: handle:
-        warn!("Failed to parse transport bytes | {e:#}");
-        return;
-      }
-    };
-    match state {
-      MessageState::Request => handle_request(id, bytes),
-      MessageState::Terminal => {
-        handle_terminal_message(id, bytes).await
-      }
-      // Shouldn't be received by Periphery
-      MessageState::InProgress => {}
-      MessageState::Successful => {}
-      MessageState::Failed => {}
+async fn handle_incoming_bytes(bytes: Bytes) {
+  // Maybe wrap all of this on tokio spawn
+  let (id, state) = match id_state_from_transport_bytes(&bytes) {
+    Ok(res) => res,
+    Err(e) => {
+      // TODO: handle:
+      warn!("Failed to parse transport bytes | {e:#}");
+      return;
     }
+  };
+  match state {
+    MessageState::Request => handle_request(id, bytes),
+    MessageState::Terminal => {
+      handle_terminal_message(id, bytes).await
+    }
+    // Shouldn't be received by Periphery
+    MessageState::InProgress => {}
+    MessageState::Successful => {}
+    MessageState::Failed => {}
   }
 }
 
@@ -104,20 +92,19 @@ fn handle_request(req_id: Uuid, bytes: Bytes) {
       };
 
     let resolve_response = async {
-      let (state, data) =
-        match request.resolve(&Args).await {
-          Ok(JsonBytes::Ok(res)) => (MessageState::Successful, res),
-          Ok(JsonBytes::Err(e)) => (
-            MessageState::Failed,
-            serialize_error_bytes(
-              &anyhow::Error::new(e)
-                .context("Failed to serialize response body"),
-            ),
+      let (state, data) = match request.resolve(&Args).await {
+        Ok(JsonBytes::Ok(res)) => (MessageState::Successful, res),
+        Ok(JsonBytes::Err(e)) => (
+          MessageState::Failed,
+          serialize_error_bytes(
+            &anyhow::Error::new(e)
+              .context("Failed to serialize response body"),
           ),
-          Err(e) => {
-            (MessageState::Failed, serialize_error_bytes(&e.error))
-          }
-        };
+        ),
+        Err(e) => {
+          (MessageState::Failed, serialize_error_bytes(&e.error))
+        }
+      };
       if let Err(e) = ws_sender()
         .send(to_transport_bytes(data, req_id, state))
         .await

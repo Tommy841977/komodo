@@ -120,6 +120,10 @@ pub struct Env {
   #[serde(default = "super::default_extend_config_arrays")]
   pub periphery_extend_config_arrays: bool,
 
+  /// Override `core_host`
+  pub periphery_core_host: Option<String>,
+  /// Override `connect_as`
+  pub periphery_connect_as: Option<String>,
   /// Override `port`
   pub periphery_port: Option<u16>,
   /// Override `bind_ip`
@@ -183,6 +187,18 @@ pub struct Env {
 /// Refer to the [example file](https://github.com/moghtech/komodo/blob/main/config/periphery.config.toml) for a full example.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PeripheryConfig {
+  // ============================
+  // = OUTBOUND CONNECTION MODE =
+  // ============================
+  /// Address of Komodo Core when connecting outbound
+  pub core_host: Option<String>,
+  /// Server name / id to connect as
+  /// TODO: explore using device identifier like MAC
+  pub connect_as: Option<String>,
+
+  // ===========================
+  // = INBOUND CONNECTION MODE =
+  // ===========================
   /// The port periphery will run on.
   /// Default: `8120`
   #[serde(default = "default_periphery_port")]
@@ -193,6 +209,36 @@ pub struct PeripheryConfig {
   #[serde(default = "default_periphery_bind_ip")]
   pub bind_ip: String,
 
+  /// Limits which IP addresses are allowed to call the api.
+  /// Default: none
+  ///
+  /// Note: this should be configured to increase security.
+  #[serde(default)]
+  pub allowed_ips: ForgivingVec<IpNetwork>,
+
+  /// Limits the accepted passkeys.
+  /// Default: none
+  ///
+  /// Note: this should be configured to increase security.
+  #[serde(default)]
+  pub passkeys: Vec<String>,
+
+  /// Whether to enable ssl.
+  /// Default: true
+  #[serde(default = "default_ssl_enabled")]
+  pub ssl_enabled: bool,
+
+  /// Path to the ssl key.
+  /// Default: `${root_directory}/ssl/key.pem`.
+  pub ssl_key_file: Option<PathBuf>,
+
+  /// Path to the ssl cert.
+  /// Default: `${root_directory}/ssl/cert.pem`.
+  pub ssl_cert_file: Option<PathBuf>,
+
+  // ==================
+  // = OTHER SETTINGS =
+  // ==================
   /// The directory Komodo will use as the default root for the specific (repo, stack, build) directories.
   ///
   /// repo: ${root_directory}/repos
@@ -260,20 +306,6 @@ pub struct PeripheryConfig {
   #[serde(default)]
   pub pretty_startup_config: bool,
 
-  /// Limits which IP addresses are allowed to call the api.
-  /// Default: none
-  ///
-  /// Note: this should be configured to increase security.
-  #[serde(default)]
-  pub allowed_ips: ForgivingVec<IpNetwork>,
-
-  /// Limits the accepted passkeys.
-  /// Default: none
-  ///
-  /// Note: this should be configured to increase security.
-  #[serde(default)]
-  pub passkeys: Vec<String>,
-
   /// If non-empty, only includes specific mount paths in the disk report.
   #[serde(default)]
   pub include_disk_mounts: ForgivingVec<PathBuf>,
@@ -296,19 +328,6 @@ pub struct PeripheryConfig {
   /// Supports any docker image repository.
   #[serde(default, alias = "docker_registry")]
   pub docker_registries: ForgivingVec<DockerRegistry>,
-
-  /// Whether to enable ssl.
-  /// Default: true
-  #[serde(default = "default_ssl_enabled")]
-  pub ssl_enabled: bool,
-
-  /// Path to the ssl key.
-  /// Default: `${root_directory}/ssl/key.pem`.
-  pub ssl_key_file: Option<PathBuf>,
-
-  /// Path to the ssl cert.
-  /// Default: `${root_directory}/ssl/cert.pem`.
-  pub ssl_cert_file: Option<PathBuf>,
 }
 
 fn default_periphery_port() -> u16 {
@@ -338,6 +357,8 @@ fn default_ssl_enabled() -> bool {
 impl Default for PeripheryConfig {
   fn default() -> Self {
     Self {
+      core_host: None,
+      connect_as: None,
       port: default_periphery_port(),
       bind_ip: default_periphery_bind_ip(),
       root_directory: default_root_directory(),
@@ -369,6 +390,8 @@ impl Default for PeripheryConfig {
 impl PeripheryConfig {
   pub fn sanitized(&self) -> PeripheryConfig {
     PeripheryConfig {
+      core_host: self.core_host.clone(),
+      connect_as: self.connect_as.clone(),
       port: self.port,
       bind_ip: self.bind_ip.clone(),
       root_directory: self.root_directory.clone(),

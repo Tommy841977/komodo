@@ -11,9 +11,7 @@ use transport::{
 };
 use uuid::Uuid;
 
-use crate::{
-  connection::periphery_connections, periphery_response_channels,
-};
+use crate::{connection::periphery_connections, periphery_channels};
 
 #[tracing::instrument(name = "PeripheryRequest", level = "debug")]
 pub async fn request<T>(
@@ -39,10 +37,8 @@ where
     ));
   }
 
-  let response_channels = periphery_response_channels()
-    .get(server_id)
-    .await
-    .with_context(|| {
+  let response_channels =
+    periphery_channels().get(server_id).await.with_context(|| {
       format!("No response channels found for server {server_id}")
     })?;
 

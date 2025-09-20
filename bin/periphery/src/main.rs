@@ -1,3 +1,5 @@
+use anyhow::anyhow;
+
 #[macro_use]
 extern crate tracing;
 
@@ -6,7 +8,6 @@ mod config;
 mod connection;
 mod docker;
 mod helpers;
-mod server;
 mod stats;
 mod terminal;
 
@@ -27,7 +28,15 @@ async fn app() -> anyhow::Result<()> {
   docker::stats::spawn_polling_thread();
   connection::init_response_channel();
 
-  server::run_connection_server().await
+  match (&config.core_host, &config.connect_as) {
+    (Some(core_host), Some(connect_as)) => {
+      connection::client::handler(core_host, connect_as).await
+    }
+    (None, _) => connection::server::run().await,
+    (Some(_), None) => Err(anyhow!(
+      "Must provide 'connect_as' (PERIPHERY_CONNECT_AS) for outbound connection."
+    )),
+  }
 }
 
 #[tokio::main]

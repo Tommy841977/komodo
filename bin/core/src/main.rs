@@ -8,7 +8,7 @@ use std::{net::SocketAddr, str::FromStr, time::Duration};
 use anyhow::Context;
 use axum::Router;
 use axum_server::{Handle, tls_rustls::RustlsConfig};
-use periphery_client::periphery_response_channels;
+use periphery_client::periphery_channels;
 use tower_http::{
   cors::{Any, CorsLayer},
   services::{ServeDir, ServeFile},
@@ -85,7 +85,7 @@ async fn app() -> anyhow::Result<()> {
     loop {
       tokio::time::sleep(Duration::from_secs(5)).await;
       for (server_id, cache) in
-        periphery_response_channels().get_entries().await
+        periphery_channels().get_entries().await
       {
         let channels = cache.get_keys().await;
         println!(

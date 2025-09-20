@@ -16,13 +16,12 @@ mod request;
 pub use request::request;
 
 // Server id => Channel sender map
-pub type ResponseChannels =
+pub type Channels =
   CloneCache<String, Arc<CloneCache<Uuid, Sender<Bytes>>>>;
 
-pub fn periphery_response_channels() -> &'static ResponseChannels {
-  static RESPONSE_CHANNELS: OnceLock<ResponseChannels> =
-    OnceLock::new();
-  RESPONSE_CHANNELS.get_or_init(Default::default)
+pub fn periphery_channels() -> &'static Channels {
+  static CHANNELS: OnceLock<Channels> = OnceLock::new();
+  CHANNELS.get_or_init(Default::default)
 }
 
 pub struct PeripheryClient {
