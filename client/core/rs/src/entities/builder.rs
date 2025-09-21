@@ -247,7 +247,9 @@ impl MergePartial for BuilderConfig {
         BuilderConfig::Url(config) => {
           let config = UrlBuilderConfig {
             address: partial.address.unwrap_or(config.address),
-            passkey: partial.passkey.unwrap_or(config.passkey),
+            private_key: partial
+              .private_key
+              .unwrap_or(config.private_key),
           };
           BuilderConfig::Url(config)
         }
@@ -315,9 +317,9 @@ pub struct UrlBuilderConfig {
   /// The address of the Periphery agent
   #[serde(default = "default_address")]
   pub address: String,
-  /// A custom passkey to use. Otherwise, use the default passkey.
+  /// A custom private key to use. Otherwise, use the default private key.
   #[serde(default)]
-  pub passkey: String,
+  pub private_key: String,
 }
 
 fn default_address() -> String {
@@ -328,7 +330,7 @@ impl Default for UrlBuilderConfig {
   fn default() -> Self {
     Self {
       address: default_address(),
-      passkey: Default::default(),
+      private_key: Default::default(),
     }
   }
 }

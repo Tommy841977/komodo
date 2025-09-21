@@ -19,10 +19,10 @@ pub async fn handler(
   let query = format!("server={}", urlencoding::encode(&_server));
   periphery_client::connection::server::handler(
     server.id,
-    if server.config.passkey.is_empty() {
+    if server.config.private_key.is_empty() {
       core_config().private_key.clone()
     } else {
-      server.config.passkey
+      server.config.private_key
     },
     headers,
     query,

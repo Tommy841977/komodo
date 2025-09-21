@@ -30,7 +30,7 @@ pub async fn manage_client_connections(
   let specs = servers
     .iter()
     .filter(|s| s.config.enabled)
-    .map(|s| (&s.id, (&s.config.address, &s.config.passkey)))
+    .map(|s| (&s.id, (&s.config.address, &s.config.private_key)))
     .collect::<HashMap<_, _>>();
 
   // Clear non specced / enabled server connections

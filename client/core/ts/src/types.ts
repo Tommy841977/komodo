@@ -2015,11 +2015,11 @@ export interface ServerConfig {
 	 */
 	timeout_seconds: I64;
 	/**
-	 * An optional override passkey to use
+	 * An optional override private key to use
 	 * to authenticate with periphery agent.
-	 * If this is empty, will use passkey in core config.
+	 * If this is empty, will use private key in core config.
 	 */
-	passkey?: string;
+	private_key?: string;
 	/**
 	 * Sometimes the system stats reports a mount path that is not desired.
 	 * Use this field to filter it out from the report.
@@ -8432,8 +8432,8 @@ export interface UpdateVariableValue {
 export interface UrlBuilderConfig {
 	/** The address of the Periphery agent */
 	address: string;
-	/** A custom passkey to use. Otherwise, use the default passkey. */
-	passkey?: string;
+	/** A custom private key to use. Otherwise, use the default private key. */
+	private_key?: string;
 }
 
 /** Update dockerfile contents in Files on Server or Git Repo mode. Response: [Update]. */

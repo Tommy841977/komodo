@@ -54,10 +54,10 @@ pub async fn get_builder_periphery(
         PeripheryClient::new_with_spawned_client_connection(
           ObjectId::new().to_hex(),
           &config.address,
-          if config.passkey.is_empty() {
+          if config.private_key.is_empty() {
             core_config().private_key.clone()
           } else {
-            config.passkey
+            config.private_key
           },
         )
         .await?;
