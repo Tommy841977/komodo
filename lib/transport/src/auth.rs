@@ -6,12 +6,13 @@
 //! This is trivial for Periphery -> Core connection, but presents a challenge
 //! for Core -> Periphery, where untrusted TLS certs are being used.
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use axum::http::{HeaderMap, HeaderValue};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use bytes::Bytes;
 use noise::NoiseHandshake;
 use rand::RngCore;
+use serror::{deserialize_error_bytes, serialize_error_bytes};
 use sha2::{Digest, Sha256};
 use tracing::warn;
 
@@ -70,16 +71,26 @@ impl LoginFlow for ServerLoginFlow {
         .recv_bytes()
         .await
         .context("Failed to get handshake_m1")?;
-      handshake
-        .read_message(&handshake_m1)
-        .context("Failed to read handshake_m1")?;
+      match MessageState::from_byte(
+        *handshake_m1.last().context("handshake_m1 is empty")?,
+      ) {
+        MessageState::Successful => handshake
+          .read_message(&handshake_m1[..(handshake_m1.len() - 1)])
+          .context("Failed to read handshake_m1")?,
+        _ => {
+          return Err(deserialize_error_bytes(
+            &handshake_m1[..(handshake_m1.len() - 1)],
+          ));
+        }
+      }
 
       // Send handshake_m2
-      let handshake_m2 = handshake
+      let mut handshake_m2 = handshake
         .next_message()
         .context("Failed to write handshake_m2")?;
+      handshake_m2.push(MessageState::Successful.as_byte());
       socket
-        .send(handshake_m2)
+        .send(handshake_m2.into())
         .await
         .context("Failed to send handshake_m2")?;
 
@@ -88,14 +99,22 @@ impl LoginFlow for ServerLoginFlow {
         .recv_bytes()
         .await
         .context("Failed to get handshake_m3")?;
-      handshake
-        .read_message(&handshake_m3)
-        .context("Failed to read handshake_m3")?;
+      match MessageState::from_byte(
+        *handshake_m3.last().context("handshake_m3 is empty")?,
+      ) {
+        MessageState::Successful => handshake
+          .read_message(&handshake_m3[..(handshake_m3.len() - 1)])
+          .context("Failed to read handshake_m3")?,
+        _ => {
+          return Err(deserialize_error_bytes(
+            &handshake_m3[..(handshake_m3.len() - 1)],
+          ));
+        }
+      }
 
       // Server now has client public key
       public_key_validator
-        .validate(handshake.remote_public_key()?)
-        .context("Failed to validate remote public key")?;
+        .validate(handshake.remote_public_key()?)?;
 
       anyhow::Ok(())
     }
@@ -110,10 +129,12 @@ impl LoginFlow for ServerLoginFlow {
         Ok(())
       }
       Err(e) => {
+        let mut bytes = serialize_error_bytes(&e);
+        bytes.push(MessageState::Failed.as_byte());
         if let Err(e) = socket
-          .send(MessageState::Successful.into())
+          .send(bytes.into())
           .await
-          .context("Failed to send login successful to client")
+          .context("Failed to send login failed to client")
         {
           // Log additional error
           warn!("{e:#}");
@@ -136,65 +157,98 @@ impl LoginFlow for ClientLoginFlow {
     private_key: &str,
     public_key_validator: &impl PublicKeyValidator,
   ) -> anyhow::Result<()> {
-    // Receive nonce from server
-    let nonce = socket
-      .recv_bytes()
-      .await
-      .context("Failed to receive connection nonce")?;
+    let res = async {
+      // Receive nonce from server
+      let nonce = socket
+        .recv_bytes()
+        .await
+        .context("Failed to receive connection nonce")?;
 
-    let mut handshake = NoiseHandshake::new_initiator(
-      private_key,
-      // Builds the handshake using the connection-unique prologue hash.
-      // The prologue must be the same on both sides of connection.
-      &connection_identifiers.hash(&nonce),
-    )
-    .context("Failed to inialize handshake")?;
+      let mut handshake = NoiseHandshake::new_initiator(
+        private_key,
+        // Builds the handshake using the connection-unique prologue hash.
+        // The prologue must be the same on both sides of connection.
+        &connection_identifiers.hash(&nonce),
+      )
+      .context("Failed to inialize handshake")?;
 
-    // Send handshake_m1
-    let handshake_m1 = handshake
-      .next_message()
-      .context("Failed to write handshake m1")?;
-    socket
-      .send(handshake_m1)
-      .await
-      .context("Failed to send handshake_m1")?;
+      // Send handshake_m1
+      let mut handshake_m1 = handshake
+        .next_message()
+        .context("Failed to write handshake m1")?;
+      handshake_m1.push(MessageState::Successful.as_byte());
+      socket
+        .send(handshake_m1.into())
+        .await
+        .context("Failed to send handshake_m1")?;
 
-    // Receive and read handshake_m2
-    let handshake_m2 = socket
-      .recv_bytes()
-      .await
-      .context("Failed to get handshake_m2")?;
-    handshake
-      .read_message(&handshake_m2)
-      .context("Failed to read handshake_m2")?;
+      // Receive and read handshake_m2
+      let handshake_m2 = socket
+        .recv_bytes()
+        .await
+        .context("Failed to get handshake_m2")?;
+      match MessageState::from_byte(
+        *handshake_m2.last().context("handshake_m2 is empty")?,
+      ) {
+        MessageState::Successful => handshake
+          .read_message(&handshake_m2[..(handshake_m2.len() - 1)])
+          .context("Failed to read handshake_m2")?,
+        _ => {
+          return Err(deserialize_error_bytes(
+            &handshake_m2[..(handshake_m2.len() - 1)],
+          ));
+        }
+      }
 
-    // Client now has server public key,
-    // can perform validation.
-    public_key_validator
-      .validate(handshake.remote_public_key()?)
-      .context("Failed to validate remote public key")?;
+      // Client now has server public key,
+      // can perform validation.
+      public_key_validator
+        .validate(handshake.remote_public_key()?)?;
 
-    // Send handshake_m3
-    let handshake_m3 = handshake
-      .next_message()
-      .context("Failed to write handshake_m3")?;
-    socket
-      .send(handshake_m3)
-      .await
-      .context("Failed to send handshake_m3")?;
+      // Send handshake_m3
+      let mut handshake_m3 = handshake
+        .next_message()
+        .context("Failed to write handshake_m3")?;
+      handshake_m3.push(MessageState::Successful.as_byte());
+      socket
+        .send(handshake_m3.into())
+        .await
+        .context("Failed to send handshake_m3")?;
 
-    // Receive login state message and return based on value
-    let state = socket
-      .recv_bytes()
-      .await
-      .context("Failed to receive authentication state message")?;
-    let state = state.first().context(
-      "Authentication state message did not contain state byte",
-    )?;
-    match MessageState::from_byte(*state) {
-      MessageState::Successful => Ok(()),
-      // Todo: More descriptive error?
-      _ => Err(anyhow!("Authentication failed")),
+      // Receive login state message and return based on value
+      let state_msg = socket
+        .recv_bytes()
+        .await
+        .context("Failed to receive authentication state message")?;
+      let state = state_msg.last().context(
+        "Authentication state message did not contain state byte",
+      )?;
+      match MessageState::from_byte(*state) {
+        MessageState::Successful => anyhow::Ok(()),
+        _ => Err(deserialize_error_bytes(
+          &state_msg[..(state_msg.len() - 1)],
+        )),
+      }
+    }
+    .await;
+
+    if let Err(e) = res {
+      let mut bytes = serialize_error_bytes(&e);
+      bytes.push(MessageState::Failed.as_byte());
+      if let Err(e) = socket
+        .send(bytes.into())
+        .await
+        .context("Failed to send login failed to client")
+      {
+        // Log additional error
+        warn!("{e:#}");
+        // Close socket
+        let _ = socket.close(None).await;
+      }
+      // Return the original error
+      Err(e)
+    } else {
+      Ok(())
     }
   }
 }

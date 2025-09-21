@@ -1,6 +1,5 @@
 use anyhow::{Context, anyhow};
 use base64::{engine::Engine, prelude::BASE64_STANDARD};
-use bytes::Bytes;
 
 const NOISE_XX_PARAMS: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 
@@ -67,10 +66,10 @@ impl NoiseHandshake {
   }
 
   /// Produces next message to be read on other side of handshake
-  pub fn next_message(&mut self) -> Result<Bytes, snow::Error> {
+  pub fn next_message(&mut self) -> Result<Vec<u8>, snow::Error> {
     let mut buf = [0u8; 1024];
     let written = self.0.write_message(&[], &mut buf)?;
-    Ok(Bytes::copy_from_slice(&buf[..written]))
+    Ok(buf[..written].to_vec())
   }
 
   /// Gets the base64-encoded remote public key.

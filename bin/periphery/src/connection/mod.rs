@@ -85,7 +85,17 @@ impl<W: Websocket, S: FnMut()> WebsocketHandler<'_, W, S> {
     .await?;
     on_login_success();
 
-    info!("Logged in to Core connection websocket");
+    let config = periphery_config();
+    info!(
+      "Logged in to Core connection websocket{}",
+      if config.core_host.is_some()
+        && let Some(connect_as) = &config.connect_as
+      {
+        format!(" as Server {connect_as}")
+      } else {
+        String::new()
+      }
+    );
 
     let (mut ws_write, mut ws_read) = socket.split();
 
@@ -148,7 +158,7 @@ impl PublicKeyValidator for CorePublicKeyValidator {
       periphery_config().core_public_key.as_ref()
       && &public_key != expected_public_key
     {
-      Err(anyhow!("Failed to validate Core public key"))
+      Err(anyhow!("Periphery failed to validate Core public key"))
     } else {
       Ok(())
     }

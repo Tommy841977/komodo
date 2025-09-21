@@ -8,6 +8,8 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+serror.workspace = true
+#
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
 tracing.workspace = true
