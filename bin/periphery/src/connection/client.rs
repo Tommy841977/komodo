@@ -39,16 +39,24 @@ pub async fn handler(
 
   info!("Initiating outbound connection to {url}");
 
+  let mut already_logged_connection_error = false;
+  let mut already_logged_login_error = false;
+
   loop {
     let (socket, accept) =
       match connect_websocket(&core_endpoint).await {
         Ok(res) => res,
         Err(e) => {
-          warn!("{e:#}");
+          if !already_logged_connection_error {
+            warn!("{e:#}");
+            already_logged_connection_error = true;
+          }
           tokio::time::sleep(Duration::from_secs(5)).await;
           continue;
         }
       };
+
+    already_logged_connection_error = false;
 
     info!("Connected to core connection websocket");
 
@@ -64,10 +72,14 @@ pub async fn handler(
       connection_identifiers,
       "TEST",
       &mut write_receiver,
+      || already_logged_login_error = false,
     )
     .await
     {
-      warn!("Failed to login | {e:#}");
+      if !already_logged_login_error {
+        warn!("Failed to login | {e:#}");
+        already_logged_login_error = true;
+      }
       tokio::time::sleep(Duration::from_secs(5)).await;
       continue;
     };

@@ -60,8 +60,10 @@ async fn handle_websocket<L: LoginFlow>(
   connection_identifiers: ConnectionIdentifiers<'_>,
   private_key: &str,
   write_receiver: &mut BufferedReceiver<Bytes>,
+  mut on_login_success: impl FnMut(),
 ) -> anyhow::Result<()> {
   L::login(&mut socket, connection_identifiers, private_key).await?;
+  on_login_success();
 
   info!("Logged in to core connection websocket");
 

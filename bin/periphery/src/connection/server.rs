@@ -95,6 +95,7 @@ async fn handler(
       connection_identifiers,
       "TEST",
       &mut write_receiver,
+      || {},
     )
     .await
     {
