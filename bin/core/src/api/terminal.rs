@@ -61,7 +61,8 @@ async fn execute_terminal_inner(
   )
   .await?;
 
-  let stream = periphery_client(&server)?
+  let stream = periphery_client(&server)
+    .await?
     .execute_terminal(terminal, command)
     .await
     .context("Failed to execute command on periphery")?;
@@ -106,7 +107,7 @@ async fn execute_container_exec_inner(
   )
   .await?;
 
-  let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server).await?;
 
   let stream = periphery
     .execute_container_exec(container, shell, command)
@@ -156,7 +157,7 @@ async fn execute_deployment_exec_inner(
 
   let server = get::<Server>(&deployment.config.server_id).await?;
 
-  let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server).await?;
 
   let stream = periphery
     .execute_container_exec(deployment.name, shell, command)
@@ -222,7 +223,7 @@ async fn execute_stack_exec_inner(
     .name
     .clone();
 
-  let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server).await?;
 
   let stream = periphery
     .execute_container_exec(container, shell, command)

@@ -22,7 +22,7 @@ use transport::{
 };
 use uuid::Uuid;
 
-use crate::periphery_channels;
+use crate::all_server_channels;
 
 pub mod client;
 pub mod server;
@@ -112,7 +112,7 @@ pub struct MessageHandler {
 impl MessageHandler {
   pub async fn new(server_id: &String) -> MessageHandler {
     MessageHandler {
-      channels: periphery_channels()
+      channels: all_server_channels()
         .get_or_insert_default(server_id)
         .await,
     }

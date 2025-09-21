@@ -127,7 +127,7 @@ impl Resolve<WriteArgs> for RenameRepo {
     let server =
       resource::get::<Server>(&repo.config.server_id).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server).await?
       .request(api::git::RenameRepo {
         curr_name: to_path_compatible_name(&repo.name),
         new_name: name.clone(),

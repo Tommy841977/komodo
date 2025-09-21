@@ -145,7 +145,8 @@ impl Resolve<ReadArgs> for GetDeploymentLog {
       return Ok(Log::default());
     }
     let server = resource::get::<Server>(&server_id).await?;
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server)
+      .await?
       .request(api::container::GetContainerLog {
         name,
         tail: cmp::min(tail, MAX_LOG_LENGTH),
@@ -183,7 +184,8 @@ impl Resolve<ReadArgs> for SearchDeploymentLog {
       return Ok(Log::default());
     }
     let server = resource::get::<Server>(&server_id).await?;
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server)
+      .await?
       .request(api::container::GetContainerLogSearch {
         name,
         terms,
@@ -234,7 +236,8 @@ impl Resolve<ReadArgs> for InspectDeploymentContainer {
         .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server)
+      .await?
       .request(InspectContainer { name })
       .await?;
     Ok(res)
@@ -262,7 +265,8 @@ impl Resolve<ReadArgs> for GetDeploymentStats {
       );
     }
     let server = resource::get::<Server>(&server_id).await?;
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server)
+      .await?
       .request(api::container::GetContainerStats { name })
       .await
       .context("failed to get stats from periphery")?;

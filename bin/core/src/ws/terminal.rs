@@ -45,7 +45,7 @@ pub async fn handler(
       }
     };
 
-    let periphery = match periphery_client(&server) {
+    let periphery = match periphery_client(&server).await {
       Ok(periphery) => periphery,
       Err(e) => {
         debug!("couldn't get periphery | {e:#}");

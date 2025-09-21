@@ -15,8 +15,8 @@ use komodo_client::{
   ws::WsLoginMessage,
 };
 use periphery_client::{
-  PeripheryClient, api::terminal::DisconnectTerminal,
-  periphery_channels,
+  PeripheryClient, all_server_channels,
+  api::terminal::DisconnectTerminal,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
@@ -142,7 +142,8 @@ async fn handle_container_terminal(
   container: String,
   shell: String,
 ) {
-  let periphery = match crate::helpers::periphery_client(server) {
+  let periphery = match crate::helpers::periphery_client(server).await
+  {
     Ok(periphery) => periphery,
     Err(e) => {
       debug!("couldn't get periphery | {e:#}");
@@ -296,7 +297,7 @@ async fn forward_ws_channel(
     )
   }
   if let Some(response_channels) =
-    periphery_channels().get(&periphery.id).await
+    all_server_channels().get(&periphery.server_id).await
   {
     response_channels.remove(&periphery_connection_id).await;
   }

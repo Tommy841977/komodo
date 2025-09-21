@@ -60,9 +60,7 @@ pub async fn handler(
     )
     .await
     {
-      warn!(
-        "PERIPHERY: [{server_id}] Client failed to login | {e:#}"
-      );
+      warn!("Server {server_id} | Client failed to login | {e:#}");
       connection.set_error(e).await;
       return;
     }

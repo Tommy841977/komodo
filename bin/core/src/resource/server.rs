@@ -12,6 +12,7 @@ use komodo_client::entities::{
   update::Update,
   user::User,
 };
+use periphery_client::all_server_channels;
 
 use crate::{
   config::core_config,
@@ -219,7 +220,10 @@ impl super::KomodoResource for Server {
     resource: &Resource<Self::Config, Self::Info>,
     _update: &mut Update,
   ) -> anyhow::Result<()> {
-    server_status_cache().remove(&resource.id).await;
+    tokio::join!(
+      server_status_cache().remove(&resource.id),
+      all_server_channels().remove(&resource.id),
+    );
     Ok(())
   }
 }

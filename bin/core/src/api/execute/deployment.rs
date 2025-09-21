@@ -203,7 +203,8 @@ impl Resolve<ExecuteArgs> for Deploy {
     update.version = version;
     update_update(update.clone()).await?;
 
-    match periphery_client(&server)?
+    match periphery_client(&server)
+      .await?
       .request(api::container::Deploy {
         deployment,
         stop_signal: self.stop_signal,
@@ -331,7 +332,8 @@ pub async fn pull_deployment_inner(
   }
 
   let res = async {
-    let log = match periphery_client(server)?
+    let log = match periphery_client(server)
+      .await?
       .request(api::image::PullImage {
         name: image,
         account,
@@ -414,7 +416,8 @@ impl Resolve<ExecuteArgs> for StartDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::StartContainer {
         name: deployment.name,
       })
@@ -461,7 +464,8 @@ impl Resolve<ExecuteArgs> for RestartDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::RestartContainer {
         name: deployment.name,
       })
@@ -510,7 +514,8 @@ impl Resolve<ExecuteArgs> for PauseDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::PauseContainer {
         name: deployment.name,
       })
@@ -557,7 +562,8 @@ impl Resolve<ExecuteArgs> for UnpauseDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::UnpauseContainer {
         name: deployment.name,
       })
@@ -606,7 +612,8 @@ impl Resolve<ExecuteArgs> for StopDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::StopContainer {
         name: deployment.name,
         signal: self
@@ -688,7 +695,8 @@ impl Resolve<ExecuteArgs> for DestroyDeployment {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let log = match periphery_client(&server)?
+    let log = match periphery_client(&server)
+      .await?
       .request(api::container::RemoveContainer {
         name: deployment.name,
         signal: self

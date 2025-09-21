@@ -85,7 +85,7 @@ impl Resolve<WriteArgs> for CreateDeploymentFromContainer {
         .into(),
       );
     }
-    let container = periphery_client(&server)?
+    let container = periphery_client(&server).await?
       .request(InspectContainer {
         name: self.name.clone(),
       })
@@ -231,7 +231,7 @@ impl Resolve<WriteArgs> for RenameDeployment {
     if container_state != DeploymentState::NotDeployed {
       let server =
         resource::get::<Server>(&deployment.config.server_id).await?;
-      let log = periphery_client(&server)?
+      let log = periphery_client(&server).await?
         .request(api::container::RenameContainer {
           curr_name: deployment.name.clone(),
           new_name: name.clone(),

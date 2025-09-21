@@ -85,7 +85,7 @@ pub async fn get_server_state(server: &Server) -> ServerState {
     return ServerState::Disabled;
   }
   // Unwrap ok: Server disabled check above
-  match super::periphery_client(server)
+  match super::periphery_client(server).await
     .unwrap()
     .request(periphery_client::api::GetHealth {})
     .await
@@ -432,7 +432,7 @@ pub async fn get_system_info(
       cached.0.clone()
     }
     _ => {
-      let stats = periphery_client(server)?
+      let stats = periphery_client(server).await?
         .request(stats::GetSystemInformation {})
         .await?;
       lock.insert(

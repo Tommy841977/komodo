@@ -170,7 +170,7 @@ async fn write_stack_file_contents_on_host(
       .into(),
     );
   }
-  match periphery_client(&server)?
+  match periphery_client(&server).await?
     .request(WriteComposeContentsToHost {
       name: stack.name,
       run_directory: stack.config.run_directory,
@@ -424,7 +424,7 @@ impl Resolve<WriteArgs> for RefreshStackCache {
         (vec![], None, None, None, None)
       } else if let Some(server) = server {
         let GetComposeContentsOnHostResponse { contents, errors } =
-          match periphery_client(&server)?
+          match periphery_client(&server).await?
             .request(GetComposeContentsOnHost {
               file_paths: stack.all_file_dependencies(),
               name: stack.name.clone(),

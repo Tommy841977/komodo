@@ -327,7 +327,7 @@ impl super::KomodoResource for Stack {
       return Ok(());
     }
 
-    let periphery = match periphery_client(&server) {
+    let periphery = match periphery_client(&server).await {
       Ok(periphery) => periphery,
       Err(e) => {
         // This case won't ever happen, as periphery_client only fallible if the server is disabled.

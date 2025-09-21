@@ -289,7 +289,7 @@ impl Resolve<ReadArgs> for ListSystemProcesses {
         cached.0.clone()
       }
       _ => {
-        let stats = periphery_client(&server)?
+        let stats = periphery_client(&server).await?
           .request(periphery::stats::GetSystemProcesses {})
           .await?;
         lock.insert(
@@ -478,7 +478,7 @@ impl Resolve<ReadArgs> for InspectDockerContainer {
         .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(InspectContainer {
         name: self.container,
       })
@@ -506,7 +506,7 @@ impl Resolve<ReadArgs> for GetContainerLog {
       PermissionLevel::Read.logs(),
     )
     .await?;
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(periphery::container::GetContainerLog {
         name: container,
         tail: cmp::min(tail, MAX_LOG_LENGTH),
@@ -537,7 +537,7 @@ impl Resolve<ReadArgs> for SearchContainerLog {
       PermissionLevel::Read.logs(),
     )
     .await?;
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(periphery::container::GetContainerLogSearch {
         name: container,
         terms,
@@ -657,7 +657,7 @@ impl Resolve<ReadArgs> for InspectDockerNetwork {
         .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(InspectNetwork { name: self.network })
       .await?;
     Ok(res)
@@ -706,7 +706,7 @@ impl Resolve<ReadArgs> for InspectDockerImage {
           .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(InspectImage { name: self.image })
       .await?;
     Ok(res)
@@ -736,7 +736,7 @@ impl Resolve<ReadArgs> for ListDockerImageHistory {
         .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(ImageHistory { name: self.image })
       .await?;
     Ok(res)
@@ -785,7 +785,7 @@ impl Resolve<ReadArgs> for InspectDockerVolume {
           .into(),
       );
     }
-    let res = periphery_client(&server)?
+    let res = periphery_client(&server).await?
       .request(InspectVolume { name: self.volume })
       .await?;
     Ok(res)
@@ -865,7 +865,7 @@ impl Resolve<ReadArgs> for ListTerminals {
     let cache = terminals_cache().get_or_insert(server.id.clone());
     let mut cache = cache.lock().await;
     if self.fresh || komodo_timestamp() > cache.ttl {
-      cache.list = periphery_client(&server)?
+      cache.list = periphery_client(&server).await?
         .request(periphery_client::api::terminal::ListTerminals {})
         .await
         .context("Failed to get fresh terminal list")?;

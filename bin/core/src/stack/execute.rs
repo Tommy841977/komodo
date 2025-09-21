@@ -55,7 +55,7 @@ pub async fn execute_compose<T: ExecuteCompose>(
   // Send update here for frontend to recheck action state
   update_update(update.clone()).await?;
 
-  let periphery = periphery_client(&server)?;
+  let periphery = periphery_client(&server).await?;
 
   if !services.is_empty() {
     update.logs.push(Log::simple(

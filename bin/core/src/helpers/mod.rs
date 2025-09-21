@@ -184,23 +184,13 @@ pub async fn registry_token(
 
 //
 
-pub fn periphery_client(
+pub async fn periphery_client(
   server: &Server,
 ) -> anyhow::Result<PeripheryClient> {
   if !server.config.enabled {
     return Err(anyhow!("server not enabled"));
   }
-
-  let client = PeripheryClient::new(
-    &server.id,
-    if server.config.passkey.is_empty() {
-      &core_config().passkey
-    } else {
-      &server.config.passkey
-    },
-  );
-
-  Ok(client)
+  Ok(PeripheryClient::new(server.id.clone()).await)
 }
 
 #[instrument]

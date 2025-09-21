@@ -50,7 +50,7 @@ impl Resolve<ExecuteArgs> for StartContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::StartContainer {
@@ -104,7 +104,7 @@ impl Resolve<ExecuteArgs> for RestartContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::RestartContainer {
@@ -160,7 +160,7 @@ impl Resolve<ExecuteArgs> for PauseContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::PauseContainer {
@@ -214,7 +214,7 @@ impl Resolve<ExecuteArgs> for UnpauseContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::UnpauseContainer {
@@ -270,7 +270,7 @@ impl Resolve<ExecuteArgs> for StopContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::StopContainer {
@@ -332,7 +332,7 @@ impl Resolve<ExecuteArgs> for DestroyContainer {
     // Send update after setting action state, this way frontend gets correct state.
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::RemoveContainer {
@@ -387,7 +387,7 @@ impl Resolve<ExecuteArgs> for StartAllContainers {
 
     update_update(update.clone()).await?;
 
-    let logs = periphery_client(&server)?
+    let logs = periphery_client(&server).await?
       .request(api::container::StartAllContainers {})
       .await
       .context("failed to start all containers on host")?;
@@ -437,7 +437,7 @@ impl Resolve<ExecuteArgs> for RestartAllContainers {
 
     update_update(update.clone()).await?;
 
-    let logs = periphery_client(&server)?
+    let logs = periphery_client(&server).await?
       .request(api::container::RestartAllContainers {})
       .await
       .context("failed to restart all containers on host")?;
@@ -489,7 +489,7 @@ impl Resolve<ExecuteArgs> for PauseAllContainers {
 
     update_update(update.clone()).await?;
 
-    let logs = periphery_client(&server)?
+    let logs = periphery_client(&server).await?
       .request(api::container::PauseAllContainers {})
       .await
       .context("failed to pause all containers on host")?;
@@ -539,7 +539,7 @@ impl Resolve<ExecuteArgs> for UnpauseAllContainers {
 
     update_update(update.clone()).await?;
 
-    let logs = periphery_client(&server)?
+    let logs = periphery_client(&server).await?
       .request(api::container::UnpauseAllContainers {})
       .await
       .context("failed to unpause all containers on host")?;
@@ -591,7 +591,7 @@ impl Resolve<ExecuteArgs> for StopAllContainers {
 
     update_update(update.clone()).await?;
 
-    let logs = periphery_client(&server)?
+    let logs = periphery_client(&server).await?
       .request(api::container::StopAllContainers {})
       .await
       .context("failed to stop all containers on host")?;
@@ -641,7 +641,7 @@ impl Resolve<ExecuteArgs> for PruneContainers {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::container::PruneContainers {})
@@ -686,7 +686,7 @@ impl Resolve<ExecuteArgs> for DeleteNetwork {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::network::DeleteNetwork {
@@ -748,7 +748,7 @@ impl Resolve<ExecuteArgs> for PruneNetworks {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::network::PruneNetworks {})
@@ -791,7 +791,7 @@ impl Resolve<ExecuteArgs> for DeleteImage {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::image::DeleteImage {
@@ -850,7 +850,7 @@ impl Resolve<ExecuteArgs> for PruneImages {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log =
       match periphery.request(api::image::PruneImages {}).await {
@@ -891,7 +891,7 @@ impl Resolve<ExecuteArgs> for DeleteVolume {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery
       .request(api::volume::DeleteVolume {
@@ -953,7 +953,7 @@ impl Resolve<ExecuteArgs> for PruneVolumes {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log =
       match periphery.request(api::volume::PruneVolumes {}).await {
@@ -1005,7 +1005,7 @@ impl Resolve<ExecuteArgs> for PruneDockerBuilders {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log =
       match periphery.request(api::build::PruneBuilders {}).await {
@@ -1057,7 +1057,7 @@ impl Resolve<ExecuteArgs> for PruneBuildx {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log =
       match periphery.request(api::build::PruneBuildx {}).await {
@@ -1109,7 +1109,7 @@ impl Resolve<ExecuteArgs> for PruneSystem {
 
     update_update(update.clone()).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let log = match periphery.request(api::PruneSystem {}).await {
       Ok(log) => log,

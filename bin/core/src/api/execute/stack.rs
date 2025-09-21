@@ -155,7 +155,8 @@ impl Resolve<ExecuteArgs> for DeployStack {
       compose_config,
       commit_hash,
       commit_message,
-    } = periphery_client(&server)?
+    } = periphery_client(&server)
+      .await?
       .request(ComposeUp {
         stack: stack.clone(),
         services: self.services,
@@ -749,7 +750,8 @@ pub async fn pull_stack_inner(
     Default::default()
   };
 
-  let res = periphery_client(server)?
+  let res = periphery_client(server)
+    .await?
     .request(ComposePull {
       stack,
       services,
@@ -1022,7 +1024,8 @@ impl Resolve<ExecuteArgs> for RunStackService {
       Default::default()
     };
 
-    let log = periphery_client(&server)?
+    let log = periphery_client(&server)
+      .await?
       .request(ComposeRun {
         stack,
         repo,

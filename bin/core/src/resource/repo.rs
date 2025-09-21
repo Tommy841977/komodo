@@ -169,7 +169,7 @@ impl super::KomodoResource for Repo {
     }
 
     let server = super::get::<Server>(&repo.config.server_id).await?;
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     match periphery
       .request(DeleteRepo {

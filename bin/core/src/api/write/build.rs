@@ -1,8 +1,11 @@
+use std::time::Duration;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{Context, anyhow};
-use database::mongo_indexed::doc;
 use database::mungos::mongodb::bson::to_document;
+use database::{
+  mongo_indexed::doc, mungos::mongodb::bson::oid::ObjectId,
+};
 use formatting::format_serror;
 use komodo_client::{
   api::write::*,
@@ -430,12 +433,27 @@ async fn get_on_host_periphery(
     BuilderConfig::Url(config) => {
       // TODO: Ensure connection is actually established.
       // Builder id no good because it may be active for multiple connections.
-      let periphery = PeripheryClient::new(
-        builder.id,
-        config.passkey,
-      );
-      periphery.health_check().await?;
-      Ok(periphery)
+      let periphery =
+        PeripheryClient::new_with_spawned_client_connection(
+          ObjectId::new().to_hex(),
+          &config.address,
+          if config.passkey.is_empty() {
+            core_config().passkey.clone()
+          } else {
+            config.passkey
+          },
+        )
+        .await?;
+      // Poll for connection to be estalished
+      let mut err = None;
+      for _ in 0..10 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        match periphery.health_check().await {
+          Ok(_) => return Ok(periphery),
+          Err(e) => err = Some(e),
+        };
+      }
+      Err(err.context("Missing error")?)
     }
     BuilderConfig::Server(config) => {
       if config.server_id.is_empty() {
@@ -450,7 +468,7 @@ async fn get_on_host_periphery(
           "Builder server is disabled or not reachable"
         ));
       };
-      periphery_client(&server)
+      periphery_client(&server).await
     }
   }
 }

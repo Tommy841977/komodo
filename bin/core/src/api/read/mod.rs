@@ -343,7 +343,7 @@ impl Resolve<ReadArgs> for ListSecrets {
       };
       if let Some(id) = server_id {
         let server = resource::get::<Server>(&id).await?;
-        let more = periphery_client(&server)?
+        let more = periphery_client(&server).await?
           .request(periphery_client::api::ListSecrets {})
           .await
           .with_context(|| {
@@ -515,7 +515,7 @@ async fn merge_git_providers_for_server(
   server_id: &str,
 ) -> serror::Result<()> {
   let server = resource::get::<Server>(server_id).await?;
-  let more = periphery_client(&server)?
+  let more = periphery_client(&server).await?
     .request(periphery_client::api::ListGitProviders {})
     .await
     .with_context(|| {
@@ -553,7 +553,7 @@ async fn merge_docker_registries_for_server(
   server_id: &str,
 ) -> serror::Result<()> {
   let server = resource::get::<Server>(server_id).await?;
-  let more = periphery_client(&server)?
+  let more = periphery_client(&server).await?
     .request(periphery_client::api::ListDockerRegistries {})
     .await
     .with_context(|| {

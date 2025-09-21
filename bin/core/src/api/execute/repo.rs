@@ -105,7 +105,7 @@ impl Resolve<ExecuteArgs> for CloneRepo {
     let server =
       resource::get::<Server>(&repo.config.server_id).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     // interpolate variables / secrets, returning the sanitizing replacers to send to
     // periphery so it may sanitize the final command for safe logging (avoids exposing secret values)
@@ -220,7 +220,7 @@ impl Resolve<ExecuteArgs> for PullRepo {
     let server =
       resource::get::<Server>(&repo.config.server_id).await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     // interpolate variables / secrets, returning the sanitizing replacers to send to
     // periphery so it may sanitize the final command for safe logging (avoids exposing secret values)

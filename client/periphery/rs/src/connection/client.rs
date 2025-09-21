@@ -13,21 +13,21 @@ use transport::{
 };
 
 use crate::{
+  all_server_channels,
   connection::{
     MessageHandler, PeripheryConnection, periphery_connections,
   },
-  periphery_channels,
 };
 
 /// Managed connections to exactly those specified by specs (ServerId -> Address)
 pub async fn manage_client_connections(servers: &[Server]) {
   let periphery_connections = periphery_connections();
-  let periphery_channels = periphery_channels();
+  let periphery_channels = all_server_channels();
 
   let specs = servers
     .iter()
     .filter(|s| s.config.enabled)
-    .map(|s| (&s.id, &s.config.address))
+    .map(|s| (&s.id, (&s.config.address, &s.config.passkey)))
     .collect::<HashMap<_, _>>();
 
   // Clear non specced / enabled server connections
@@ -45,7 +45,7 @@ pub async fn manage_client_connections(servers: &[Server]) {
   }
 
   // Apply latest connection specs
-  for (server_id, address) in specs {
+  for (server_id, (address, private_key)) in specs {
     let address = if address.is_empty() {
       address.to_string()
     } else {
@@ -80,8 +80,12 @@ pub async fn manage_client_connections(servers: &[Server]) {
       (false, None) => {}
     };
     // If reaches here, recreate the connection.
-    if let Err(e) =
-      spawn_client_connection(server_id.clone(), address).await
+    if let Err(e) = spawn_client_connection(
+      server_id.clone(),
+      address,
+      private_key.to_owned(),
+    )
+    .await
     {
       warn!(
         "Failed to spawn new connnection for {server_id} | {e:#}"
@@ -91,9 +95,10 @@ pub async fn manage_client_connections(servers: &[Server]) {
 }
 
 // Assumes address already wss formatted
-async fn spawn_client_connection(
+pub async fn spawn_client_connection(
   server_id: String,
   address: String,
+  private_key: String,
 ) -> anyhow::Result<()> {
   let url = ::url::Url::parse(&address)
     .context("Failed to parse server address")?;
@@ -116,7 +121,14 @@ async fn spawn_client_connection(
 
   tokio::spawn(async move {
     loop {
-      let (socket, accept) = match connect_websocket(&address).await {
+      let ws = tokio::select! {
+        _ = connection.cancel.cancelled() => {
+          break
+        }
+        ws = connect_websocket(&address) => ws,
+      };
+
+      let (socket, accept) = match ws {
         Ok(res) => res,
         Err(e) => {
           connection.set_error(e).await;
@@ -134,7 +146,7 @@ async fn spawn_client_connection(
           accept: accept.as_bytes(),
           query: &[],
         },
-        "TEST",
+        &private_key,
         &mut write_receiver,
         &connection,
         &handler,
@@ -142,6 +154,9 @@ async fn spawn_client_connection(
       )
       .await
       {
+        if connection.cancel.is_cancelled() {
+          break;
+        }
         connection.set_error(e).await;
         tokio::time::sleep(Duration::from_secs(5)).await;
         continue;

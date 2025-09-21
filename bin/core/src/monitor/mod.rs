@@ -22,6 +22,7 @@ use tokio::sync::Mutex;
 
 use crate::{
   config::core_config,
+  helpers::periphery_client,
   monitor::{alert::check_alerts, record::record_server_stats},
   state::{db_client, deployment_status_cache, repo_status_cache},
 };
@@ -199,42 +200,34 @@ pub async fn update_cache_for_server(server: &Server, force: bool) {
     return;
   }
 
-  // let Ok(periphery) = periphery_client(server) else {
-  //   error!(
-  //     "somehow periphery not ok to create. should not be reached."
-  //   );
-  //   return;
-  // };
+  let Ok(periphery) = periphery_client(server).await else {
+    error!(
+      "Somehow periphery not ok to create. Should not be reached."
+    );
+    return;
+  };
 
-  let version =
-    match periphery_client::request(&server.id, api::GetVersion {})
-      .await
-    {
-      Ok(version) => version.version,
-      Err(e) => {
-        insert_deployments_status_unknown(deployments).await;
-        insert_stacks_status_unknown(stacks).await;
-        insert_repos_status_unknown(repos).await;
-        insert_server_status(
-          server,
-          ServerState::NotOk,
-          String::from("Unknown"),
-          None,
-          (None, None, None, None, None),
-          Serror::from(&e),
-        )
-        .await;
-        return;
-      }
-    };
+  let version = match periphery.request(api::GetVersion {}).await {
+    Ok(version) => version.version,
+    Err(e) => {
+      insert_deployments_status_unknown(deployments).await;
+      insert_stacks_status_unknown(stacks).await;
+      insert_repos_status_unknown(repos).await;
+      insert_server_status(
+        server,
+        ServerState::NotOk,
+        String::from("Unknown"),
+        None,
+        (None, None, None, None, None),
+        Serror::from(&e),
+      )
+      .await;
+      return;
+    }
+  };
 
   let stats = if server.config.stats_monitoring {
-    match periphery_client::request(
-      &server.id,
-      api::stats::GetSystemStats {},
-    )
-    .await
-    {
+    match periphery.request(api::stats::GetSystemStats {}).await {
       Ok(stats) => Some(filter_volumes(server, stats)),
       Err(e) => {
         insert_deployments_status_unknown(deployments).await;
@@ -256,7 +249,7 @@ pub async fn update_cache_for_server(server: &Server, force: bool) {
     None
   };
 
-  match lists::get_docker_lists(&server.id).await {
+  match lists::get_docker_lists(&periphery).await {
     Ok((mut containers, networks, images, volumes, projects)) => {
       containers.iter_mut().for_each(|container| {
         container.server_id = Some(server.id.clone())
@@ -309,18 +302,16 @@ pub async fn update_cache_for_server(server: &Server, force: bool) {
 
   let status_cache = repo_status_cache();
   for repo in repos {
-    let (latest_hash, latest_message) = periphery_client::request(
-      &server.id,
-      GetLatestCommit {
+    let (latest_hash, latest_message) = periphery
+      .request(GetLatestCommit {
         name: repo.name.clone(),
         path: optional_string(&repo.config.path),
-      },
-    )
-    .await
-    .ok()
-    .flatten()
-    .map(|c| (c.hash, c.message))
-    .unzip();
+      })
+      .await
+      .ok()
+      .flatten()
+      .map(|c| (c.hash, c.message))
+      .unzip();
     status_cache
       .insert(
         repo.id,

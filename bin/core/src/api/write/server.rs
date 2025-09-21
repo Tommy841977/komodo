@@ -91,7 +91,7 @@ impl Resolve<WriteArgs> for CreateNetwork {
     )
     .await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     let mut update =
       make_update(&server, Operation::CreateNetwork, user);
@@ -132,7 +132,7 @@ impl Resolve<WriteArgs> for CreateTerminal {
     )
     .await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     periphery
       .request(api::terminal::CreateTerminal {
@@ -160,7 +160,7 @@ impl Resolve<WriteArgs> for DeleteTerminal {
     )
     .await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     periphery
       .request(api::terminal::DeleteTerminal {
@@ -186,7 +186,7 @@ impl Resolve<WriteArgs> for DeleteAllTerminals {
     )
     .await?;
 
-    let periphery = periphery_client(&server)?;
+    let periphery = periphery_client(&server).await?;
 
     periphery
       .request(api::terminal::DeleteAllTerminals {})

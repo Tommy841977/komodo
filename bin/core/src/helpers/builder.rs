@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, anyhow};
+use database::mungos::mongodb::bson::oid::ObjectId;
 use formatting::muted;
 use komodo_client::entities::{
   Version,
@@ -47,14 +48,19 @@ pub async fn get_builder_periphery(
           "Builder has not yet configured an address"
         ));
       }
-      let periphery = PeripheryClient::new(
-        &builder.id,
-        if config.passkey.is_empty() {
-          &core_config().passkey
-        } else {
-          &config.passkey
-        },
-      );
+      // TODO: Dont use builder id, or will be problems
+      // with simultaneous spawned builders.
+      let periphery =
+        PeripheryClient::new_with_spawned_client_connection(
+          ObjectId::new().to_hex(),
+          &config.address,
+          if config.passkey.is_empty() {
+            core_config().passkey.clone()
+          } else {
+            config.passkey
+          },
+        )
+        .await?;
       periphery
         .health_check()
         .await
@@ -66,12 +72,11 @@ pub async fn get_builder_periphery(
         return Err(anyhow!("Builder has not configured a server"));
       }
       let server = resource::get::<Server>(&config.server_id).await?;
-      let periphery = periphery_client(&server)?;
+      let periphery = periphery_client(&server).await?;
       Ok((periphery, BuildCleanupData::Server))
     }
     BuilderConfig::Aws(config) => {
       get_aws_builder(
-        &builder.id,
         &resource_name,
         version,
         config,
@@ -84,7 +89,6 @@ pub async fn get_builder_periphery(
 
 #[instrument(skip_all, fields(resource_name, update_id = update.id))]
 async fn get_aws_builder(
-  builder_id: &String,
   resource_name: &str,
   version: Option<Version>,
   config: AwsBuilderConfig,
@@ -112,13 +116,18 @@ async fn get_aws_builder(
 
   update_update(update.clone()).await?;
 
-  let protocol = if config.use_https { "https" } else { "http" };
+  let protocol = if config.use_https { "wss" } else { "ws" };
 
   // TODO: Handle ad-hoc (non server) periphery connections. These don't have ids.
   let periphery_address =
     format!("{protocol}://{ip}:{}", config.port);
   let periphery =
-    PeripheryClient::new(builder_id, &core_config().passkey);
+    PeripheryClient::new_with_spawned_client_connection(
+      ObjectId::new().to_hex(),
+      &periphery_address,
+      core_config().passkey.clone(),
+    )
+    .await?;
 
   let start_connect_ts = komodo_timestamp();
   let mut res = Ok(GetVersionResponse {
