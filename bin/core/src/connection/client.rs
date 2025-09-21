@@ -30,6 +30,7 @@ pub async fn manage_client_connections(servers: &[Server]) {
       (
         &s.id,
         (
+          &s.name,
           &s.config.address,
           &s.config.private_key,
           &s.config.public_key,
@@ -53,8 +54,10 @@ pub async fn manage_client_connections(servers: &[Server]) {
   }
 
   // Apply latest connection specs
-  for (server_id, (address, private_key, expected_public_key)) in
-    specs
+  for (
+    server_id,
+    (name, address, private_key, expected_public_key),
+  ) in specs
   {
     let address = if address.is_empty() {
       address.to_string()
@@ -91,6 +94,7 @@ pub async fn manage_client_connections(servers: &[Server]) {
     };
     // If reaches here, recreate the connection.
     if let Err(e) = spawn_client_connection(
+      name.clone(),
       server_id.clone(),
       address,
       private_key.clone(),
@@ -107,6 +111,7 @@ pub async fn manage_client_connections(servers: &[Server]) {
 
 // Assumes address already wss formatted
 pub async fn spawn_client_connection(
+  label: String,
   server_id: String,
   address: String,
   private_key: String,
@@ -116,8 +121,6 @@ pub async fn spawn_client_connection(
     .context("Failed to parse server address")?;
   let host: Vec<u8> =
     url.host().context("url has no host")?.to_string().into();
-
-  info!("Spawning connection for {server_id}");
 
   let handler = MessageHandler::new(&server_id).await;
 
@@ -158,10 +161,8 @@ pub async fn spawn_client_connection(
         }
       };
 
-      info!("PERIPHERY: Connected to {address}");
-
       let handler = super::WebsocketHandler {
-        label: &address,
+        label: &label,
         socket,
         connection_identifiers: ConnectionIdentifiers {
           host: &host,

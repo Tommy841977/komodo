@@ -54,7 +54,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
     )
     .await?;
 
-    info!("PERIPHERY: Logged into {label}");
+    info!("PERIPHERY: Authenticated connection to {label} established");
 
     connection.set_connected(true);
     connection.clear_error().await;
@@ -133,7 +133,7 @@ impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
     if let Some(expected) = self.expected
       && public_key != expected
     {
-      Err(anyhow!("Public key does not match expected"))
+      Err(anyhow!("Core failed to validate Periphery public key"))
     } else {
       Ok(())
     }

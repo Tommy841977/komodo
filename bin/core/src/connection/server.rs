@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use axum::{
   extract::{Query, WebSocketUpgrade},
   http::{HeaderMap, StatusCode},
@@ -6,8 +6,7 @@ use axum::{
 };
 use komodo_client::entities::server::Server;
 use periphery_client::periphery_connections;
-use serror::AddStatusCode;
-use tracing::warn;
+use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
   PeripheryConnectionQuery,
   auth::{ServerHeaderIdentifiers, ServerLoginFlow},
@@ -33,6 +32,20 @@ pub async fn handler(
     .await
     .status_code(StatusCode::BAD_REQUEST)?;
 
+  let connections = periphery_connections();
+
+  // Ensure connected server can't get bumped off the connection.
+  // Treat this as authorization issue.
+  if let Some(existing_connection) = connections.get(&server.id).await
+  {
+    if existing_connection.connected() {
+      return Err(
+        anyhow!("A Server '{_server}' is already connected")
+          .status_code(StatusCode::UNAUTHORIZED),
+      );
+    }
+  }
+
   let expected_public_key = if server.config.public_key.is_empty() {
     core_config().periphery_public_key.clone().context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
   } else {
@@ -44,17 +57,18 @@ pub async fn handler(
   let (connection, mut write_receiver) =
     PeripheryConnection::new(None);
 
-  if let Some(existing_connection) = periphery_connections()
+  if let Some(existing_connection) = connections
     .insert(server.id.clone(), connection.clone())
     .await
   {
+    // This case shouldn't be reached from above but doesn't hurt to handle
     existing_connection.cancel();
   }
 
   Ok(ws.on_upgrade(|socket| async move {
     let query = format!("server={}", urlencoding::encode(&_server));
     let handler = super::WebsocketHandler {
-      label: &server.id,
+      label: &server.name,
       socket: AxumWebsocket(socket),
       connection_identifiers: identifiers.build(query.as_bytes()),
       private_key: if server.config.private_key.is_empty() {
@@ -69,10 +83,6 @@ pub async fn handler(
     };
 
     if let Err(e) = handler.handle::<ServerLoginFlow>().await {
-      warn!(
-        "Server {} | Client failed to login | {e:#}",
-        server.name
-      );
       connection.set_error(e).await;
     }
   }))

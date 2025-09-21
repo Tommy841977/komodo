@@ -441,6 +441,7 @@ async fn get_on_host_periphery(
           &config.address,
           |server_id, address| async move {
             spawn_client_connection(
+              format!("Builder {}", builder.name),
               server_id,
               address,
               config.private_key,

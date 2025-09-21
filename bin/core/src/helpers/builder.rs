@@ -56,6 +56,7 @@ pub async fn get_builder_periphery(
           &config.address,
           |server_id, address| async move {
             spawn_client_connection(
+              format!("Builder {}", builder.name),
               server_id,
               address,
               config.private_key,
@@ -99,10 +100,8 @@ async fn get_aws_builder(
   let Ec2Instance { instance_id, ip } =
     launch_ec2_instance(&instance_name, &config).await?;
 
-  info!("ec2 instance launched");
-
   let log = Log {
-    stage: "start build instance".to_string(),
+    stage: "Start Build Instance".to_string(),
     success: true,
     stdout: start_aws_builder_log(&instance_id, &ip, &config),
     start_ts: start_create_ts,
@@ -125,6 +124,7 @@ async fn get_aws_builder(
       &periphery_address,
       |server_id, address| async move {
         spawn_client_connection(
+          instance_name,
           server_id,
           address,
           config.private_key,

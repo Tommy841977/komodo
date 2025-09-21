@@ -172,10 +172,6 @@ pub struct Env {
 
   /// Override `allowed_ips`
   pub periphery_allowed_ips: Option<ForgivingVec<IpNetwork>>,
-  /// Override `passkeys`
-  pub periphery_passkeys: Option<Vec<String>>,
-  /// Override `passkeys` from file
-  pub periphery_passkeys_file: Option<PathBuf>,
   /// Override `include_disk_mounts`
   pub periphery_include_disk_mounts: Option<ForgivingVec<PathBuf>>,
   /// Override `exclude_disk_mounts`
@@ -234,13 +230,6 @@ pub struct PeripheryConfig {
   /// Note: this should be configured to increase security.
   #[serde(default)]
   pub allowed_ips: ForgivingVec<IpNetwork>,
-
-  /// Limits the accepted passkeys.
-  /// Default: none
-  ///
-  /// Note: this should be configured to increase security.
-  #[serde(default)]
-  pub passkeys: Vec<String>,
 
   /// Whether to enable ssl.
   /// Default: true
@@ -404,7 +393,6 @@ impl Default for PeripheryConfig {
       logging: Default::default(),
       pretty_startup_config: Default::default(),
       allowed_ips: Default::default(),
-      passkeys: Default::default(),
       include_disk_mounts: Default::default(),
       exclude_disk_mounts: Default::default(),
       secrets: Default::default(),
@@ -438,11 +426,6 @@ impl PeripheryConfig {
       logging: self.logging.clone(),
       pretty_startup_config: self.pretty_startup_config,
       allowed_ips: self.allowed_ips.clone(),
-      passkeys: self
-        .passkeys
-        .iter()
-        .map(|passkey| empty_or_redacted(passkey))
-        .collect(),
       include_disk_mounts: self.include_disk_mounts.clone(),
       exclude_disk_mounts: self.exclude_disk_mounts.clone(),
       secrets: self

@@ -18,7 +18,7 @@ use tokio::sync::{
   mpsc::{self, Sender, error::SendError},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::warn;
 use transport::{
   MessageState,
   bytes::{from_transport_bytes, to_transport_bytes},
@@ -255,8 +255,6 @@ impl PeripheryConnection {
   }
 
   pub fn cancel(&self) {
-    // TODO: remove logs
-    info!("Cancelling connection");
     self.cancel.cancel();
   }
 }

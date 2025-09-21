@@ -50,6 +50,9 @@ pub async fn handler(
           if !already_logged_connection_error {
             warn!("{e:#}");
             already_logged_connection_error = true;
+            // If error transitions from login to connection,
+            // set to false to see login error after reconnect.
+            already_logged_login_error = false;
           }
           tokio::time::sleep(Duration::from_secs(5)).await;
           continue;
