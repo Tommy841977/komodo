@@ -14,7 +14,7 @@ use tower_http::{
   services::{ServeDir, ServeFile},
 };
 
-use crate::config::core_config;
+use crate::config::{core_config, core_public_key};
 
 mod alert;
 mod api;
@@ -58,6 +58,8 @@ async fn app() -> anyhow::Result<()> {
     (false, false) => info!("{:?}", config.sanitized()),
   }
 
+  // Init public key to crash on failure
+  core_public_key();
   // Init jwt client to crash on failure
   state::jwt_client();
   tokio::join!(

@@ -27,7 +27,9 @@ use typeshare::typeshare;
 use uuid::Uuid;
 
 use crate::{
-  auth::auth_request, config::core_config, helpers::periphery_client,
+  auth::auth_request,
+  config::{core_config, core_public_key},
+  helpers::periphery_client,
   resource,
 };
 
@@ -298,6 +300,7 @@ fn core_info() -> &'static GetCoreInfoResponse {
         .map(|i| i.namespace.to_string())
         .collect(),
       timezone: config.timezone.clone(),
+      public_key: core_public_key().to_string(),
     }
   })
 }
@@ -343,7 +346,8 @@ impl Resolve<ReadArgs> for ListSecrets {
       };
       if let Some(id) = server_id {
         let server = resource::get::<Server>(&id).await?;
-        let more = periphery_client(&server).await?
+        let more = periphery_client(&server)
+          .await?
           .request(periphery_client::api::ListSecrets {})
           .await
           .with_context(|| {
@@ -515,7 +519,8 @@ async fn merge_git_providers_for_server(
   server_id: &str,
 ) -> serror::Result<()> {
   let server = resource::get::<Server>(server_id).await?;
-  let more = periphery_client(&server).await?
+  let more = periphery_client(&server)
+    .await?
     .request(periphery_client::api::ListGitProviders {})
     .await
     .with_context(|| {
@@ -553,7 +558,8 @@ async fn merge_docker_registries_for_server(
   server_id: &str,
 ) -> serror::Result<()> {
   let server = resource::get::<Server>(server_id).await?;
-  let more = periphery_client(&server).await?
+  let more = periphery_client(&server)
+    .await?
     .request(periphery_client::api::ListDockerRegistries {})
     .await
     .with_context(|| {

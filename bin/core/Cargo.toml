@@ -27,6 +27,7 @@ command.workspace = true
 config.workspace = true
 logger.workspace = true
 cache.workspace = true
+noise.workspace = true
 git.workspace = true
 # mogh
 serror = { workspace = true, features = ["axum"] }

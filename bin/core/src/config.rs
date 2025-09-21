@@ -17,6 +17,14 @@ use komodo_client::entities::{
   logger::LogConfig,
 };
 
+/// Should call in startup to ensure Core errors without valid private key.
+pub fn core_public_key() -> &'static String {
+  static CORE_PUBLIC_KEY: OnceLock<String> = OnceLock::new();
+  CORE_PUBLIC_KEY.get_or_init(|| {
+    noise::compute_public_key(&core_config().private_key).unwrap()
+  })
+}
+
 pub fn core_config() -> &'static CoreConfig {
   static CORE_CONFIG: OnceLock<CoreConfig> = OnceLock::new();
   CORE_CONFIG.get_or_init(|| {
