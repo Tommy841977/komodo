@@ -73,17 +73,13 @@ async fn handler(
     .status_code(StatusCode::UNAUTHORIZED)?;
 
   Ok(ws.on_upgrade(|socket| async move {
-    let socket = AxumWebsocket(socket);
-
-    // TODO: source the pk
-    if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
-      socket,
-      identifiers.build(&[]),
-      &mut write_receiver,
-      || {},
-    )
-    .await
-    {
+    let handler = super::WebsocketHandler {
+      socket: AxumWebsocket(socket),
+      connection_identifiers: identifiers.build(&[]),
+      write_receiver: &mut write_receiver,
+      on_login_success: || {},
+    };
+    if let Err(e) = handler.handle::<ServerLoginFlow>().await {
       warn!("Core failed to login to connection | {e:#}");
       return;
     }

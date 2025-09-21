@@ -37,17 +37,17 @@ pub async fn handler(
   }
 
   Ok(ws.on_upgrade(|socket| async move {
-    if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
-      &server_id,
-      AxumWebsocket(socket),
-      identifiers.build(query.as_bytes()),
-      &private_key,
-      &mut write_receiver,
-      &connection,
-      &handler,
-    )
-    .await
-    {
+    let handler = super::WebsocketHandler {
+      label: &server_id,
+      socket: AxumWebsocket(socket),
+      connection_identifiers: identifiers.build(query.as_bytes()),
+      private_key: &private_key,
+      write_receiver: &mut write_receiver,
+      connection: &connection,
+      handler: &handler,
+    };
+
+    if let Err(e) = handler.handle::<ServerLoginFlow>().await {
       warn!("Server {server_id} | Client failed to login | {e:#}");
       connection.set_error(e).await;
       return;

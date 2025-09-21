@@ -27,88 +27,104 @@ use crate::all_server_channels;
 pub mod client;
 pub mod server;
 
-async fn handle_websocket<L: LoginFlow>(
-  label: &str,
-  mut socket: impl Websocket,
-  connection_identifiers: ConnectionIdentifiers<'_>,
-  private_key: &str,
-  write_receiver: &mut BufferedReceiver<Bytes>,
-  connection: &PeripheryConnection,
-  handler: &MessageHandler,
-) -> anyhow::Result<()> {
-  L::login(
-    &mut socket,
-    connection_identifiers,
-    private_key,
-    &PeripheryPublicKeyValidator,
-  )
-  .await?;
+pub struct WebsocketHandler<'a, W> {
+  pub label: &'a str,
+  pub socket: W,
+  pub connection_identifiers: ConnectionIdentifiers<'a>,
+  pub private_key: &'a str,
+  pub write_receiver: &'a mut BufferedReceiver<Bytes>,
+  pub connection: &'a PeripheryConnection,
+  pub handler: &'a MessageHandler,
+}
 
-  info!("PERIPHERY: Logged into {label}");
+impl<W: Websocket> WebsocketHandler<'_, W> {
+  async fn handle<L: LoginFlow>(self) -> anyhow::Result<()> {
+    let WebsocketHandler {
+      label,
+      mut socket,
+      connection_identifiers,
+      private_key,
+      write_receiver,
+      connection,
+      handler,
+    } = self;
 
-  connection.set_connected(true);
-  connection.clear_error().await;
+    L::login(
+      &mut socket,
+      connection_identifiers,
+      private_key,
+      &PeripheryPublicKeyValidator,
+    )
+    .await?;
 
-  let (mut ws_write, mut ws_read) = socket.split();
+    info!("PERIPHERY: Logged into {label}");
 
-  let forward_writes = async {
-    loop {
-      let next = tokio::select! {
-        next = write_receiver.recv() => next,
-        _ = connection.cancel.cancelled() => break,
-      };
+    connection.set_connected(true);
+    connection.clear_error().await;
 
-      let message = match next {
-        Some(request) => Bytes::copy_from_slice(request),
-        // Sender Dropped (shouldn't happen, a reference is held on 'connection').
-        None => break,
-      };
+    let (mut ws_write, mut ws_read) = socket.split();
 
-      match ws_write.send(message).await {
-        Ok(_) => write_receiver.clear_buffer(),
-        Err(e) => {
-          warn!("Failed to send request to {label} | {e:#}");
-          break;
+    let forward_writes = async {
+      loop {
+        let next = tokio::select! {
+          next = write_receiver.recv() => next,
+          _ = connection.cancel.cancelled() => break,
+        };
+
+        let message = match next {
+          Some(request) => Bytes::copy_from_slice(request),
+          // Sender Dropped (shouldn't happen, a reference is held on 'connection').
+          None => break,
+        };
+
+        match ws_write.send(message).await {
+          Ok(_) => write_receiver.clear_buffer(),
+          Err(e) => {
+            warn!("Failed to send request to {label} | {e:#}");
+            break;
+          }
         }
       }
-    }
-    // Cancel again if not already
-    let _ = ws_write.close(None).await;
-    connection.cancel();
-  };
+      // Cancel again if not already
+      let _ = ws_write.close(None).await;
+      connection.cancel();
+    };
 
-  let handle_reads = async {
-    loop {
-      let next = tokio::select! {
-        next = ws_read.recv() => next,
-        _ = connection.cancel.cancelled() => break,
-      };
+    let handle_reads = async {
+      loop {
+        let next = tokio::select! {
+          next = ws_read.recv() => next,
+          _ = connection.cancel.cancelled() => break,
+        };
 
-      match next {
-        Ok(WebsocketMessage::Binary(bytes)) => {
-          handler.handle_incoming_bytes(bytes).await
-        }
-        Ok(WebsocketMessage::Close(frame)) => {
-          warn!("Connection to {label} broken with frame: {frame:?}");
-          break;
-        }
-        Ok(WebsocketMessage::Closed) => {}
-        Err(e) => {
-          warn!("Connection to {label} broken with error: {e:?}");
-          break;
-        }
-      };
-    }
-    // Cancel again if not already
-    connection.cancel();
-  };
+        match next {
+          Ok(WebsocketMessage::Binary(bytes)) => {
+            handler.handle_incoming_bytes(bytes).await
+          }
+          Ok(WebsocketMessage::Close(frame)) => {
+            warn!(
+              "Connection to {label} broken with frame: {frame:?}"
+            );
+            break;
+          }
+          Ok(WebsocketMessage::Closed) => {}
+          Err(e) => {
+            warn!("Connection to {label} broken with error: {e:?}");
+            break;
+          }
+        };
+      }
+      // Cancel again if not already
+      connection.cancel();
+    };
 
-  tokio::join!(forward_writes, handle_reads);
+    tokio::join!(forward_writes, handle_reads);
 
-  warn!("PERIPHERY: Disconnnected from {label}");
-  connection.set_connected(false);
+    warn!("PERIPHERY: Disconnnected from {label}");
+    connection.set_connected(false);
 
-  Ok(())
+    Ok(())
+  }
 }
 
 pub struct PeripheryPublicKeyValidator;

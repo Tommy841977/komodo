@@ -68,15 +68,14 @@ pub async fn handler(
       query,
     };
 
-    // TODO: source the pk
-    if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
+    let handler = super::WebsocketHandler {
       socket,
       connection_identifiers,
-      &mut write_receiver,
-      || already_logged_login_error = false,
-    )
-    .await
-    {
+      write_receiver: &mut write_receiver,
+      on_login_success: || already_logged_login_error = false,
+    };
+
+    if let Err(e) = handler.handle::<ClientLoginFlow>().await {
       if !already_logged_login_error {
         warn!("Failed to login | {e:#}");
         already_logged_login_error = true;

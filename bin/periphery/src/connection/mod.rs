@@ -60,74 +60,85 @@ pub fn init_response_channel() {
     .expect("response_receiver initialized more than once");
 }
 
-async fn handle_websocket<L: LoginFlow>(
-  mut socket: impl Websocket,
-  connection_identifiers: ConnectionIdentifiers<'_>,
-  write_receiver: &mut BufferedReceiver<Bytes>,
-  mut on_login_success: impl FnMut(),
-) -> anyhow::Result<()> {
-  L::login(
-    &mut socket,
-    connection_identifiers,
-    &periphery_config().private_key,
-    &CorePublicKeyValidator,
-  )
-  .await?;
-  on_login_success();
+pub struct WebsocketHandler<'a, W, S> {
+  pub socket: W,
+  pub connection_identifiers: ConnectionIdentifiers<'a>,
+  pub write_receiver: &'a mut BufferedReceiver<Bytes>,
+  pub on_login_success: S,
+}
 
-  info!("Logged in to Core connection websocket");
+impl<W: Websocket, S: FnMut()> WebsocketHandler<'_, W, S> {
+  async fn handle<L: LoginFlow>(self) -> anyhow::Result<()> {
+    let WebsocketHandler {
+      mut socket,
+      connection_identifiers,
+      write_receiver,
+      mut on_login_success,
+    } = self;
 
-  let (mut ws_write, mut ws_read) = socket.split();
+    L::login(
+      &mut socket,
+      connection_identifiers,
+      &periphery_config().private_key,
+      &CorePublicKeyValidator,
+    )
+    .await?;
+    on_login_success();
 
-  let forward_writes = async {
-    loop {
-      let msg = match write_receiver.recv().await {
-        // Sender Dropped (shouldn't happen, it is static).
-        None => break,
-        // This has to copy the bytes to follow ownership rules.
-        Some(msg) => Bytes::copy_from_slice(msg),
-      };
-      match ws_write.send(msg).await {
-        // Clears the stored message from receiver buffer.
-        // TODO: Move after response ack.
-        Ok(_) => write_receiver.clear_buffer(),
-        Err(e) => {
-          warn!("Failed to send response | {e:?}");
-          let _ = ws_write.close(None).await;
-          break;
+    info!("Logged in to Core connection websocket");
+
+    let (mut ws_write, mut ws_read) = socket.split();
+
+    let forward_writes = async {
+      loop {
+        let msg = match write_receiver.recv().await {
+          // Sender Dropped (shouldn't happen, it is static).
+          None => break,
+          // This has to copy the bytes to follow ownership rules.
+          Some(msg) => Bytes::copy_from_slice(msg),
+        };
+        match ws_write.send(msg).await {
+          // Clears the stored message from receiver buffer.
+          // TODO: Move after response ack.
+          Ok(_) => write_receiver.clear_buffer(),
+          Err(e) => {
+            warn!("Failed to send response | {e:?}");
+            let _ = ws_write.close(None).await;
+            break;
+          }
         }
       }
-    }
-  };
+    };
 
-  let handle_reads = async {
-    loop {
-      match ws_read.recv().await {
-        Ok(WebsocketMessage::Binary(bytes)) => {
-          handle_incoming_bytes(bytes).await
-        }
-        Ok(WebsocketMessage::Close(frame)) => {
-          warn!("Connection closed with frame: {frame:?}");
-          break;
-        }
-        Ok(WebsocketMessage::Closed) => {
-          warn!("Connection already closed");
-          break;
-        }
-        Err(e) => {
-          error!("Failed to read websocket message | {e:?}");
-          break;
-        }
-      };
-    }
-  };
+    let handle_reads = async {
+      loop {
+        match ws_read.recv().await {
+          Ok(WebsocketMessage::Binary(bytes)) => {
+            handle_incoming_bytes(bytes).await
+          }
+          Ok(WebsocketMessage::Close(frame)) => {
+            warn!("Connection closed with frame: {frame:?}");
+            break;
+          }
+          Ok(WebsocketMessage::Closed) => {
+            warn!("Connection already closed");
+            break;
+          }
+          Err(e) => {
+            error!("Failed to read websocket message | {e:?}");
+            break;
+          }
+        };
+      }
+    };
 
-  tokio::select! {
-    _ = forward_writes => {},
-    _ = handle_reads => {},
-  };
+    tokio::select! {
+      _ = forward_writes => {},
+      _ = handle_reads => {},
+    };
 
-  Ok(())
+    Ok(())
+  }
 }
 
 pub struct CorePublicKeyValidator;

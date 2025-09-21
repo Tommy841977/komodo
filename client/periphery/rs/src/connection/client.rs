@@ -146,21 +146,21 @@ pub async fn spawn_client_connection(
 
       info!("PERIPHERY: Connected to {address}");
 
-      if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
-        &address,
+      let handler = super::WebsocketHandler {
+        label: &address,
         socket,
-        ConnectionIdentifiers {
+        connection_identifiers: ConnectionIdentifiers {
           host: &host,
           accept: accept.as_bytes(),
           query: &[],
         },
-        &private_key,
-        &mut write_receiver,
-        &connection,
-        &handler,
-      )
-      .await
-      {
+        private_key: &private_key,
+        write_receiver: &mut write_receiver,
+        connection: &connection,
+        handler: &handler,
+      };
+
+      if let Err(e) = handler.handle::<ClientLoginFlow>().await {
         if connection.cancel.is_cancelled() {
           break;
         }
