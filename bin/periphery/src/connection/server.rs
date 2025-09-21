@@ -93,7 +93,6 @@ async fn handler(
     if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
       socket,
       connection_identifiers,
-      "TEST",
       &mut write_receiver,
       || {},
     )

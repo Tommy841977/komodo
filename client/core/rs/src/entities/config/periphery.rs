@@ -22,6 +22,7 @@ use crate::{
   entities::{
     Timelength,
     logger::{LogConfig, LogLevel, StdioLogMode},
+    random_string,
   },
 };
 
@@ -120,6 +121,12 @@ pub struct Env {
   #[serde(default = "super::default_extend_config_arrays")]
   pub periphery_extend_config_arrays: bool,
 
+  /// Override `private_key`
+  pub periphery_private_key: Option<String>,
+  /// Override `private_key` from file
+  pub periphery_private_key_file: Option<PathBuf>,
+  /// Override `core_public_key`
+  pub periphery_core_public_key: Option<String>,
   /// Override `core_host`
   pub periphery_core_host: Option<String>,
   /// Override `connect_as`
@@ -187,11 +194,19 @@ pub struct Env {
 /// Refer to the [example file](https://github.com/moghtech/komodo/blob/main/config/periphery.config.toml) for a full example.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PeripheryConfig {
+  /// The private key used with noise handshake.
+  #[serde(default = "default_private_key")]
+  pub private_key: String,
+  /// Optionally pin a specific Core public key
+  /// for additional trust.
+  pub core_public_key: Option<String>,
+
   // ============================
   // = OUTBOUND CONNECTION MODE =
   // ============================
   /// Address of Komodo Core when connecting outbound
   pub core_host: Option<String>,
+
   /// Server name / id to connect as
   /// TODO: explore using device identifier like MAC
   pub connect_as: Option<String>,
@@ -330,6 +345,10 @@ pub struct PeripheryConfig {
   pub docker_registries: ForgivingVec<DockerRegistry>,
 }
 
+fn default_private_key() -> String {
+  random_string(32)
+}
+
 fn default_periphery_port() -> u16 {
   8120
 }
@@ -357,6 +376,8 @@ fn default_ssl_enabled() -> bool {
 impl Default for PeripheryConfig {
   fn default() -> Self {
     Self {
+      private_key: default_private_key(),
+      core_public_key: None,
       core_host: None,
       connect_as: None,
       port: default_periphery_port(),
@@ -390,6 +411,8 @@ impl Default for PeripheryConfig {
 impl PeripheryConfig {
   pub fn sanitized(&self) -> PeripheryConfig {
     PeripheryConfig {
+      private_key: empty_or_redacted(&self.private_key),
+      core_public_key: self.core_public_key.clone(),
       core_host: self.core_host.clone(),
       connect_as: self.connect_as.clone(),
       port: self.port,

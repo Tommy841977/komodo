@@ -25,12 +25,17 @@ pub struct ConnectionIdentifiers<'a> {
   pub accept: &'a [u8],
 }
 
+pub trait PublicKeyValidator {
+  fn validate(&self, public_key: String) -> anyhow::Result<()>;
+}
+
 pub trait LoginFlow {
   /// Pass base64-encoded private key
   fn login(
     socket: &mut impl Websocket,
     connection_identifiers: ConnectionIdentifiers<'_>,
     private_key: &str,
+    public_key_validator: &impl PublicKeyValidator,
   ) -> impl Future<Output = anyhow::Result<()>>;
 }
 
@@ -41,6 +46,7 @@ impl LoginFlow for ServerLoginFlow {
     socket: &mut impl Websocket,
     connection_identifiers: ConnectionIdentifiers<'_>,
     private_key: &str,
+    public_key_validator: &impl PublicKeyValidator,
   ) -> anyhow::Result<()> {
     let res = async {
       // Server generates random nonce and sends to client
@@ -86,8 +92,9 @@ impl LoginFlow for ServerLoginFlow {
         .context("Failed to read handshake_m3")?;
 
       // Server now has client public key
-      let client_public_key = handshake.remote_public_key()?;
-      println!("Server got client public key: {client_public_key}");
+      public_key_validator
+        .validate(handshake.remote_public_key()?)
+        .context("Failed to validate remote public key")?;
 
       anyhow::Ok(())
     }
@@ -126,6 +133,7 @@ impl LoginFlow for ClientLoginFlow {
     socket: &mut impl Websocket,
     connection_identifiers: ConnectionIdentifiers<'_>,
     private_key: &str,
+    public_key_validator: &impl PublicKeyValidator,
   ) -> anyhow::Result<()> {
     // Receive nonce from server
     let nonce = socket
@@ -159,9 +167,11 @@ impl LoginFlow for ClientLoginFlow {
       .read_message(&handshake_m2)
       .context("Failed to read handshake_m2")?;
 
-    // Client now has server public key
-    let server_public_key = handshake.remote_public_key()?;
-    println!("Client got server public key: {server_public_key}");
+    // Client now has server public key,
+    // can perform validation.
+    public_key_validator
+      .validate(handshake.remote_public_key()?)
+      .context("Failed to validate remote public key")?;
 
     // Send handshake_m3
     let handshake_m3 = handshake

@@ -115,6 +115,7 @@ async fn refresh_server_cache(ts: i64) {
     };
   periphery_client::connection::client::manage_client_connections(
     &servers,
+    &core_config().private_key,
   )
   .await;
   let futures = servers.into_iter().map(|server| async move {

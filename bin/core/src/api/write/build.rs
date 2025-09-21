@@ -438,7 +438,7 @@ async fn get_on_host_periphery(
           ObjectId::new().to_hex(),
           &config.address,
           if config.passkey.is_empty() {
-            core_config().passkey.clone()
+            core_config().private_key.clone()
           } else {
             config.passkey
           },

@@ -88,10 +88,12 @@ async fn app() -> anyhow::Result<()> {
         all_server_channels().get_entries().await
       {
         let channels = cache.get_keys().await;
-        println!(
-          "CHANNELS: [{server_id}] [{}] {channels:?}",
-          channels.len()
-        );
+        if !channels.is_empty() {
+          println!(
+            "CHANNELS: [{server_id}] [{}] {channels:?}",
+            channels.len()
+          );
+        }
       }
     }
   });

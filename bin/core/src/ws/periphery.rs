@@ -6,17 +6,27 @@ use axum::{
 use komodo_client::entities::server::Server;
 use transport::PeripheryConnectionQuery;
 
+use crate::config::core_config;
+
 pub async fn handler(
-  Query(PeripheryConnectionQuery { server }): Query<
+  Query(PeripheryConnectionQuery { server: _server }): Query<
     PeripheryConnectionQuery,
   >,
   headers: HeaderMap,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
-  let server_id = crate::resource::get::<Server>(&server).await?.id;
-  let query = format!("server={}", urlencoding::encode(&server));
+  let server = crate::resource::get::<Server>(&_server).await?;
+  let query = format!("server={}", urlencoding::encode(&_server));
   periphery_client::connection::server::handler(
-    server_id, headers, query, ws,
+    server.id,
+    if server.config.passkey.is_empty() {
+      core_config().private_key.clone()
+    } else {
+      server.config.passkey
+    },
+    headers,
+    query,
+    ws,
   )
   .await
 }

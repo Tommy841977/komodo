@@ -1,5 +1,6 @@
 use std::{sync::OnceLock, time::Duration};
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use cache::CloneCache;
 use resolver_api::Resolve;
@@ -9,7 +10,7 @@ use tokio::sync::{Mutex, mpsc::Sender};
 use tokio_util::sync::CancellationToken;
 use transport::{
   MessageState,
-  auth::{ConnectionIdentifiers, LoginFlow},
+  auth::{ConnectionIdentifiers, LoginFlow, PublicKeyValidator},
   bytes::{
     data_from_transport_bytes, id_state_from_transport_bytes,
     to_transport_bytes,
@@ -22,7 +23,11 @@ use transport::{
 };
 use uuid::Uuid;
 
-use crate::api::{Args, PeripheryRequest};
+use crate::{
+  api::{Args, PeripheryRequest},
+  config::periphery_config,
+  terminal::{ResizeDimensions, StdinMsg},
+};
 
 pub mod client;
 pub mod server;
@@ -58,14 +63,19 @@ pub fn init_response_channel() {
 async fn handle_websocket<L: LoginFlow>(
   mut socket: impl Websocket,
   connection_identifiers: ConnectionIdentifiers<'_>,
-  private_key: &str,
   write_receiver: &mut BufferedReceiver<Bytes>,
   mut on_login_success: impl FnMut(),
 ) -> anyhow::Result<()> {
-  L::login(&mut socket, connection_identifiers, private_key).await?;
+  L::login(
+    &mut socket,
+    connection_identifiers,
+    &periphery_config().private_key,
+    &CorePublicKeyValidator,
+  )
+  .await?;
   on_login_success();
 
-  info!("Logged in to core connection websocket");
+  info!("Logged in to Core connection websocket");
 
   let (mut ws_write, mut ws_read) = socket.split();
 
@@ -118,6 +128,20 @@ async fn handle_websocket<L: LoginFlow>(
   };
 
   Ok(())
+}
+
+pub struct CorePublicKeyValidator;
+impl PublicKeyValidator for CorePublicKeyValidator {
+  fn validate(&self, public_key: String) -> anyhow::Result<()> {
+    if let Some(expected_public_key) =
+      periphery_config().core_public_key.as_ref()
+      && &public_key != expected_public_key
+    {
+      Err(anyhow!("Failed to validate Core public key"))
+    } else {
+      Ok(())
+    }
+  }
 }
 
 async fn handle_incoming_bytes(bytes: Bytes) {
@@ -207,7 +231,7 @@ fn handle_request(req_id: Uuid, bytes: Bytes) {
 }
 
 pub type TerminalChannels =
-  CloneCache<Uuid, (Sender<Bytes>, CancellationToken)>;
+  CloneCache<Uuid, (Sender<StdinMsg>, CancellationToken)>;
 
 pub fn terminal_channels() -> &'static TerminalChannels {
   static TERMINAL_CHANNELS: OnceLock<TerminalChannels> =
@@ -224,7 +248,24 @@ async fn handle_terminal_message(id: Uuid, bytes: Bytes) {
     warn!("Got terminal message with no data for {id}");
     return;
   };
-  if let Err(e) = channel.send(data).await {
+  let msg = match data.first() {
+    Some(&0x00) => {
+      StdinMsg::Bytes(Bytes::copy_from_slice(&data[1..]))
+    }
+    Some(&0xFF) => {
+      if let Ok(dimensions) =
+        serde_json::from_slice::<ResizeDimensions>(&data[1..])
+      {
+        StdinMsg::Resize(dimensions)
+      } else {
+        return;
+      }
+    }
+    Some(_) => StdinMsg::Bytes(data),
+    // No data
+    None => return,
+  };
+  if let Err(e) = channel.send(msg).await {
     warn!("No receiver for {id} | {e:?}");
   };
 }

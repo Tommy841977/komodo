@@ -9,6 +9,7 @@ use build::ImageRegistryConfig;
 use clap::Parser;
 use derive_empty_traits::EmptyTraits;
 use derive_variants::{EnumVariants, ExtractVariant};
+use rand::Rng as _;
 use serde::{
   Deserialize, Serialize,
   de::{Visitor, value::MapAccessDeserializer},
@@ -109,6 +110,14 @@ pub struct NoData {}
 pub trait MergePartial: Sized {
   type Partial;
   fn merge_partial(self, partial: Self::Partial) -> Self;
+}
+
+pub fn random_string(length: usize) -> String {
+  rand::rng()
+    .sample_iter(&rand::distr::Alphanumeric)
+    .take(length)
+    .map(char::from)
+    .collect()
 }
 
 pub fn all_logs_success(logs: &[update::Log]) -> bool {

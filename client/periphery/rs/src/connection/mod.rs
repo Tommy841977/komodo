@@ -12,7 +12,7 @@ use tokio::sync::{
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use transport::{
-  auth::{ConnectionIdentifiers, LoginFlow},
+  auth::{ConnectionIdentifiers, LoginFlow, PublicKeyValidator},
   bytes::id_from_transport_bytes,
   channel::{BufferedReceiver, buffered_channel},
   websocket::{
@@ -36,7 +36,13 @@ async fn handle_websocket<L: LoginFlow>(
   handler: &MessageHandler,
   name: &str,
 ) -> anyhow::Result<()> {
-  L::login(&mut socket, connection_identifiers, private_key).await?;
+  L::login(
+    &mut socket,
+    connection_identifiers,
+    private_key,
+    &PeripheryPublicKeyValidator,
+  )
+  .await?;
 
   info!("PERIPHERY: Logged into {name}");
 
@@ -103,6 +109,13 @@ async fn handle_websocket<L: LoginFlow>(
   connection.set_connected(false);
 
   Ok(())
+}
+
+pub struct PeripheryPublicKeyValidator;
+impl PublicKeyValidator for PeripheryPublicKeyValidator {
+  fn validate(&self, public_key: String) -> anyhow::Result<()> {
+    Ok(())
+  }
 }
 
 pub struct MessageHandler {

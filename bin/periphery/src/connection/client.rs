@@ -58,7 +58,9 @@ pub async fn handler(
 
     already_logged_connection_error = false;
 
-    info!("Connected to core connection websocket");
+    if !already_logged_login_error {
+      info!("Connected to core connection websocket");
+    }
 
     let connection_identifiers = ConnectionIdentifiers {
       host: &host,
@@ -70,7 +72,6 @@ pub async fn handler(
     if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
       socket,
       connection_identifiers,
-      "TEST",
       &mut write_receiver,
       || already_logged_login_error = false,
     )

@@ -17,6 +17,7 @@ use crate::connection::{
 
 pub async fn handler(
   server_id: String,
+  private_key: String,
   mut headers: HeaderMap,
   query: String,
   ws: WebSocketUpgrade,
@@ -52,7 +53,7 @@ pub async fn handler(
         query: query.as_bytes(),
         accept: ws_accept.as_bytes(),
       },
-      "TEST",
+      &private_key,
       &mut write_receiver,
       &connection,
       &handler,

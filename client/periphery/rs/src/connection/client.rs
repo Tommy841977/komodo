@@ -20,7 +20,10 @@ use crate::{
 };
 
 /// Managed connections to exactly those specified by specs (ServerId -> Address)
-pub async fn manage_client_connections(servers: &[Server]) {
+pub async fn manage_client_connections(
+  servers: &[Server],
+  default_private_key: &'static str,
+) {
   let periphery_connections = periphery_connections();
   let periphery_channels = all_server_channels();
 
@@ -83,7 +86,11 @@ pub async fn manage_client_connections(servers: &[Server]) {
     if let Err(e) = spawn_client_connection(
       server_id.clone(),
       address,
-      private_key.to_owned(),
+      if private_key.is_empty() {
+        default_private_key.to_string()
+      } else {
+        private_key.clone()
+      },
     )
     .await
     {

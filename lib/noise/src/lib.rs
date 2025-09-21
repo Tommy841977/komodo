@@ -7,24 +7,33 @@ const NOISE_XX_PARAMS: &str = "Noise_XX_25519_ChaChaPoly_BLAKE2s";
 /// Wrapper around [snow::HandshakeState] to streamline this implementation
 pub struct NoiseHandshake(snow::HandshakeState);
 
+/// Private keys prefixed with `base64:`
+/// will first be converted from base64.
+fn parse_private_key(private_key: &str) -> anyhow::Result<Vec<u8>> {
+  match private_key.strip_prefix("base64:") {
+    Some(b64_pk) => {
+      if b64_pk.len() < 4 {
+        return Err(anyhow!(
+          "The base64 private key should be at least 4 characters"
+        ));
+      }
+      BASE64_STANDARD
+        .decode(b64_pk)
+        .context("Failed to decode base64 string")
+    }
+    None => Ok(private_key.as_bytes().to_vec()),
+  }
+}
+
 impl NoiseHandshake {
   /// Should pass base64 encoded private key.
   pub fn new_initiator(
     private_key: &str,
     prologue: &[u8],
   ) -> anyhow::Result<NoiseHandshake> {
-    if private_key.len() < 4 {
-      return Err(anyhow!(
-        "The private key should be at least 4 characters"
-      ));
-    }
     Ok(NoiseHandshake(
       snow::Builder::new(NOISE_XX_PARAMS.parse()?)
-        .local_private_key(
-          &BASE64_STANDARD
-            .decode(private_key)
-            .context("Failed to decode base64 string")?,
-        )
+        .local_private_key(&parse_private_key(private_key)?)
         .context("Invalid private key")?
         .prologue(prologue)
         .context("Invalid prologue")?
@@ -38,18 +47,9 @@ impl NoiseHandshake {
     private_key: &str,
     prologue: &[u8],
   ) -> anyhow::Result<NoiseHandshake> {
-    if private_key.len() < 4 {
-      return Err(anyhow!(
-        "The private key should be at least 4 characters"
-      ));
-    }
     Ok(NoiseHandshake(
       snow::Builder::new(NOISE_XX_PARAMS.parse()?)
-        .local_private_key(
-          &BASE64_STANDARD
-            .decode(private_key)
-            .context("Failed to decode base64 string")?,
-        )
+        .local_private_key(&parse_private_key(private_key)?)
         .context("Invalid private key")?
         .prologue(prologue)
         .context("Invalid prologue")?
@@ -107,6 +107,10 @@ impl Base64KeyPair {
 pub fn compute_public_key(
   private_key: &str,
 ) -> anyhow::Result<String> {
+  if !private_key.starts_with("base64:") && private_key.len() > 32 {
+    return Err(anyhow!("Private key must be 32 characters or less"));
+  }
+
   // Create mock client handshake. The private key doesn't matter.
   let mut client_handshake =
     NoiseHandshake::new_initiator("0000", &[])

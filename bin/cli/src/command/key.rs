@@ -8,7 +8,11 @@ pub async fn handle(command: &KeyCommand) -> anyhow::Result<()> {
       let keys = noise::Base64KeyPair::generate()
         .context("Failed to generate key pair")?;
       println!("\nPublic Key: {}", keys.public_key.green().bold());
-      println!("Private Key: {}", keys.private_key.red().bold());
+      println!(
+        "Private Key: {}{}",
+        "base64:".red().bold(),
+        keys.private_key.red().bold()
+      );
       Ok(())
     }
     KeyCommand::Compute { private_key } => {

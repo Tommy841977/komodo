@@ -71,10 +71,10 @@ pub struct Env {
   pub komodo_port: Option<u16>,
   /// Override `bind_ip`
   pub komodo_bind_ip: Option<String>,
-  /// Override `passkey`
-  pub komodo_passkey: Option<String>,
-  /// Override `passkey` with file
-  pub komodo_passkey_file: Option<PathBuf>,
+  /// Override `private_key`
+  pub komodo_private_key: Option<String>,
+  /// Override `private_key` with file
+  pub komodo_private_key_file: Option<PathBuf>,
   /// Override `timezone`
   #[serde(alias = "tz", alias = "TZ")]
   pub komodo_timezone: Option<String>,
@@ -317,10 +317,10 @@ pub struct CoreConfig {
   #[serde(default)]
   pub internet_interface: String,
 
-  /// Sent in auth header with req to periphery.
-  /// Should be some secure hash, maybe 20-40 chars.
-  #[serde(default = "default_passkey")]
-  pub passkey: String,
+  /// Default private key to use with Noise handshake
+  /// with Periphery agents.
+  #[serde(default = "default_private_key")]
+  pub private_key: String,
 
   /// A TZ Identifier. If not provided, will use Core local timezone.
   /// https://en.wikipedia.org/wiki/List_of_tz_database_time_zones.
@@ -639,8 +639,8 @@ fn default_core_bind_ip() -> String {
   "[::]".to_string()
 }
 
-fn default_passkey() -> String {
-  String::from("default-passkey-changeme")
+fn default_private_key() -> String {
+  String::from("default-private-key-changeme")
 }
 
 fn default_frontend_path() -> String {
@@ -702,7 +702,7 @@ impl Default for CoreConfig {
       port: default_core_port(),
       bind_ip: default_core_bind_ip(),
       internet_interface: Default::default(),
-      passkey: default_passkey(),
+      private_key: default_private_key(),
       timezone: Default::default(),
       ui_write_disabled: Default::default(),
       disable_confirm_dialog: Default::default(),
@@ -764,7 +764,7 @@ impl CoreConfig {
       host: config.host,
       port: config.port,
       bind_ip: config.bind_ip,
-      passkey: empty_or_redacted(&config.passkey),
+      private_key: empty_or_redacted(&config.private_key),
       timezone: config.timezone,
       first_server: config.first_server,
       first_server_name: config.first_server_name,

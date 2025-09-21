@@ -55,7 +55,7 @@ pub async fn get_builder_periphery(
           ObjectId::new().to_hex(),
           &config.address,
           if config.passkey.is_empty() {
-            core_config().passkey.clone()
+            core_config().private_key.clone()
           } else {
             config.passkey
           },
@@ -76,13 +76,7 @@ pub async fn get_builder_periphery(
       Ok((periphery, BuildCleanupData::Server))
     }
     BuilderConfig::Aws(config) => {
-      get_aws_builder(
-        &resource_name,
-        version,
-        config,
-        update,
-      )
-      .await
+      get_aws_builder(&resource_name, version, config, update).await
     }
   }
 }
@@ -125,7 +119,7 @@ async fn get_aws_builder(
     PeripheryClient::new_with_spawned_client_connection(
       ObjectId::new().to_hex(),
       &periphery_address,
-      core_config().passkey.clone(),
+      core_config().private_key.clone(),
     )
     .await?;
 
