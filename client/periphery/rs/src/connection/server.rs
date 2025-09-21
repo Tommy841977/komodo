@@ -1,4 +1,3 @@
-use anyhow::Context;
 use axum::{
   extract::WebSocketUpgrade,
   http::{HeaderMap, StatusCode},
@@ -7,7 +6,7 @@ use axum::{
 use serror::AddStatusCode;
 use tracing::warn;
 use transport::{
-  auth::{ConnectionIdentifiers, ServerLoginFlow, compute_accept},
+  auth::{ServerHeaderIdentifiers, ServerLoginFlow},
   websocket::axum::AxumWebsocket,
 };
 
@@ -22,16 +21,8 @@ pub async fn handler(
   query: String,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
-  let host = headers
-    .remove("x-forwarded-host")
-    .or(headers.remove("host"))
-    .context("Failed to get connection host")
+  let identifiers = ServerHeaderIdentifiers::extract(&mut headers)
     .status_code(StatusCode::UNAUTHORIZED)?;
-  let ws_key = headers
-    .get("sec-websocket-key")
-    .context("Headers do not contain Sec-Websocket-Key")
-    .status_code(StatusCode::UNAUTHORIZED)?;
-  let ws_accept = compute_accept(ws_key.as_bytes());
 
   let handler = MessageHandler::new(&server_id).await;
 
@@ -47,17 +38,13 @@ pub async fn handler(
 
   Ok(ws.on_upgrade(|socket| async move {
     if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
+      &server_id,
       AxumWebsocket(socket),
-      ConnectionIdentifiers {
-        host: host.as_bytes(),
-        query: query.as_bytes(),
-        accept: ws_accept.as_bytes(),
-      },
+      identifiers.build(query.as_bytes()),
       &private_key,
       &mut write_receiver,
       &connection,
       &handler,
-      &server_id,
     )
     .await
     {

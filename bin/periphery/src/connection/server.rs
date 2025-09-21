@@ -16,7 +16,7 @@ use axum::{
 use axum_server::tls_rustls::RustlsConfig;
 use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
-  auth::{ConnectionIdentifiers, ServerLoginFlow, compute_accept},
+  auth::{ServerHeaderIdentifiers, ServerLoginFlow},
   websocket::axum::AxumWebsocket,
 };
 
@@ -69,30 +69,16 @@ async fn handler(
     .try_lock()
     .status_code(StatusCode::FORBIDDEN)?;
 
-  let host = headers
-    .remove("x-forwarded-host")
-    .or(headers.remove("host"))
-    .context("Failed to get connection host")
+  let identifiers = ServerHeaderIdentifiers::extract(&mut headers)
     .status_code(StatusCode::UNAUTHORIZED)?;
-  let ws_key = headers
-    .remove("sec-websocket-key")
-    .context("Headers do not contain Sec-Websocket-Key")
-    .status_code(StatusCode::UNAUTHORIZED)?;
-  let ws_accept = compute_accept(ws_key.as_bytes());
 
   Ok(ws.on_upgrade(|socket| async move {
     let socket = AxumWebsocket(socket);
 
-    let connection_identifiers = ConnectionIdentifiers {
-      host: host.as_bytes(),
-      query: &[],
-      accept: ws_accept.as_bytes(),
-    };
-
     // TODO: source the pk
     if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
       socket,
-      connection_identifiers,
+      identifiers.build(&[]),
       &mut write_receiver,
       || {},
     )

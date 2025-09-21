@@ -7,6 +7,7 @@
 //! for Core -> Periphery, where untrusted TLS certs are being used.
 
 use anyhow::{Context, anyhow};
+use axum::http::{HeaderMap, HeaderValue};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use bytes::Bytes;
 use noise::NoiseHandshake;
@@ -219,6 +220,44 @@ impl ConnectionIdentifiers<'_> {
     hash.finalize().into()
   }
 }
+
+/// Used to extract owned connection identifier
+/// in server side connection handler.
+pub struct ServerHeaderIdentifiers {
+  pub host: HeaderValue,
+  pub accept: String,
+}
+
+impl ServerHeaderIdentifiers {
+  pub fn extract(
+    headers: &mut HeaderMap,
+  ) -> anyhow::Result<ServerHeaderIdentifiers> {
+    let host = headers
+      .remove("x-forwarded-host")
+      .or(headers.remove("host"))
+      .context("Failed to get connection host")?;
+    let key = headers
+      .remove("sec-websocket-key")
+      .context("Headers do not contain Sec-Websocket-Key")?;
+    let accept = compute_accept(key.as_bytes());
+    Ok(ServerHeaderIdentifiers { host, accept })
+  }
+
+  pub fn build<'a>(
+    &'a self,
+    query: &'a [u8],
+  ) -> ConnectionIdentifiers<'a> {
+    ConnectionIdentifiers {
+      host: self.host.as_bytes(),
+      accept: self.accept.as_bytes(),
+      query,
+    }
+  }
+}
+
+// pub fn extract_server_identifiers(headers: &mut HeaderMap) -> anyhow::Result<(Head)> {
+
+// }
 
 pub fn compute_accept(sec_websocket_key: &[u8]) -> String {
   // This is standard GUID to compute Sec-Websocket-Accept

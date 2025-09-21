@@ -28,13 +28,13 @@ pub mod client;
 pub mod server;
 
 async fn handle_websocket<L: LoginFlow>(
+  label: &str,
   mut socket: impl Websocket,
   connection_identifiers: ConnectionIdentifiers<'_>,
   private_key: &str,
   write_receiver: &mut BufferedReceiver<Bytes>,
   connection: &PeripheryConnection,
   handler: &MessageHandler,
-  name: &str,
 ) -> anyhow::Result<()> {
   L::login(
     &mut socket,
@@ -44,7 +44,7 @@ async fn handle_websocket<L: LoginFlow>(
   )
   .await?;
 
-  info!("PERIPHERY: Logged into {name}");
+  info!("PERIPHERY: Logged into {label}");
 
   connection.set_connected(true);
   connection.clear_error().await;
@@ -67,7 +67,7 @@ async fn handle_websocket<L: LoginFlow>(
       match ws_write.send(message).await {
         Ok(_) => write_receiver.clear_buffer(),
         Err(e) => {
-          warn!("Failed to send request to {name} | {e:#}");
+          warn!("Failed to send request to {label} | {e:#}");
           break;
         }
       }
@@ -89,12 +89,12 @@ async fn handle_websocket<L: LoginFlow>(
           handler.handle_incoming_bytes(bytes).await
         }
         Ok(WebsocketMessage::Close(frame)) => {
-          warn!("Connection to {name} broken with frame: {frame:?}");
+          warn!("Connection to {label} broken with frame: {frame:?}");
           break;
         }
         Ok(WebsocketMessage::Closed) => {}
         Err(e) => {
-          warn!("Connection to {name} broken with error: {e:?}");
+          warn!("Connection to {label} broken with error: {e:?}");
           break;
         }
       };
@@ -105,7 +105,7 @@ async fn handle_websocket<L: LoginFlow>(
 
   tokio::join!(forward_writes, handle_reads);
 
-  warn!("PERIPHERY: Disconnnected from {name}");
+  warn!("PERIPHERY: Disconnnected from {label}");
   connection.set_connected(false);
 
   Ok(())

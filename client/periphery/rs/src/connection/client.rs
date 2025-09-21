@@ -147,6 +147,7 @@ pub async fn spawn_client_connection(
       info!("PERIPHERY: Connected to {address}");
 
       if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
+        &address,
         socket,
         ConnectionIdentifiers {
           host: &host,
@@ -157,7 +158,6 @@ pub async fn spawn_client_connection(
         &mut write_receiver,
         &connection,
         &handler,
-        &address,
       )
       .await
       {
