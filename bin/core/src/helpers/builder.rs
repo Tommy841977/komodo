@@ -59,6 +59,7 @@ pub async fn get_builder_periphery(
           } else {
             config.private_key
           },
+          config.public_key,
         )
         .await?;
       periphery
@@ -119,7 +120,12 @@ async fn get_aws_builder(
     PeripheryClient::new_with_spawned_client_connection(
       ObjectId::new().to_hex(),
       &periphery_address,
-      core_config().private_key.clone(),
+      if config.private_key.is_empty() {
+        core_config().private_key.clone()
+      } else {
+        config.private_key
+      },
+      config.public_key,
     )
     .await?;
 

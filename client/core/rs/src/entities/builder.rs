@@ -250,6 +250,9 @@ impl MergePartial for BuilderConfig {
             private_key: partial
               .private_key
               .unwrap_or(config.private_key),
+            public_key: partial
+              .public_key
+              .unwrap_or(config.public_key),
           };
           BuilderConfig::Url(config)
         }
@@ -288,6 +291,12 @@ impl MergePartial for BuilderConfig {
               .unwrap_or(config.use_public_ip),
             port: partial.port.unwrap_or(config.port),
             use_https: partial.use_https.unwrap_or(config.use_https),
+            private_key: partial
+              .private_key
+              .unwrap_or(config.private_key),
+            public_key: partial
+              .public_key
+              .unwrap_or(config.public_key),
             user_data: partial.user_data.unwrap_or(config.user_data),
             git_providers: partial
               .git_providers
@@ -320,6 +329,10 @@ pub struct UrlBuilderConfig {
   /// A custom private key to use. Otherwise, use the default private key.
   #[serde(default)]
   pub private_key: String,
+  /// An expected public key associated with Periphery private key.
+  /// If empty, doesn't validate Periphery public key.
+  #[serde(default)]
+  pub public_key: String,
 }
 
 fn default_address() -> String {
@@ -331,6 +344,7 @@ impl Default for UrlBuilderConfig {
     Self {
       address: default_address(),
       private_key: Default::default(),
+      public_key: Default::default(),
     }
   }
 }
@@ -441,6 +455,15 @@ pub struct AwsBuilderConfig {
   #[builder(default)]
   pub user_data: String,
 
+  /// A custom private key to use to authenticate with agent.
+  /// Otherwise, use the default Core private key.
+  #[serde(default)]
+  pub private_key: String,
+  /// An expected public key associated with Periphery private key.
+  /// If empty, doesn't validate Periphery public key.
+  #[serde(default)]
+  pub public_key: String,
+
   /// Which git providers are available on the AMI
   #[serde(default)]
   #[builder(default)]
@@ -474,6 +497,8 @@ impl Default for AwsBuilderConfig {
       assign_public_ip: Default::default(),
       use_public_ip: Default::default(),
       user_data: Default::default(),
+      private_key: Default::default(),
+      public_key: Default::default(),
       git_providers: Default::default(),
       docker_registries: Default::default(),
       secrets: Default::default(),

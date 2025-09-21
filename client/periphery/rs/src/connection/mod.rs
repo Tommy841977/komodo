@@ -3,6 +3,7 @@ use std::sync::{
   atomic::{self, AtomicBool},
 };
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use cache::CloneCache;
 use tokio::sync::{
@@ -32,6 +33,7 @@ pub struct WebsocketHandler<'a, W> {
   pub socket: W,
   pub connection_identifiers: ConnectionIdentifiers<'a>,
   pub private_key: &'a str,
+  pub expected_public_key: &'a str,
   pub write_receiver: &'a mut BufferedReceiver<Bytes>,
   pub connection: &'a PeripheryConnection,
   pub handler: &'a MessageHandler,
@@ -44,6 +46,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
       mut socket,
       connection_identifiers,
       private_key,
+      expected_public_key,
       write_receiver,
       connection,
       handler,
@@ -53,7 +56,9 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
       &mut socket,
       connection_identifiers,
       private_key,
-      &PeripheryPublicKeyValidator,
+      &PeripheryPublicKeyValidator {
+        expected: expected_public_key,
+      },
     )
     .await?;
 
@@ -127,10 +132,16 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
   }
 }
 
-pub struct PeripheryPublicKeyValidator;
-impl PublicKeyValidator for PeripheryPublicKeyValidator {
+pub struct PeripheryPublicKeyValidator<'a> {
+  pub expected: &'a str,
+}
+impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
   fn validate(&self, public_key: String) -> anyhow::Result<()> {
-    Ok(())
+    if self.expected.is_empty() || self.expected == public_key {
+      Ok(())
+    } else {
+      Err(anyhow!("Public key does not match expected"))
+    }
   }
 }
 

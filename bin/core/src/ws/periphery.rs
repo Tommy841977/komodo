@@ -18,12 +18,8 @@ pub async fn handler(
   let server = crate::resource::get::<Server>(&_server).await?;
   let query = format!("server={}", urlencoding::encode(&_server));
   periphery_client::connection::server::handler(
-    server.id,
-    if server.config.private_key.is_empty() {
-      core_config().private_key.clone()
-    } else {
-      server.config.private_key
-    },
+    server,
+    core_config().private_key.clone(),
     headers,
     query,
     ws,

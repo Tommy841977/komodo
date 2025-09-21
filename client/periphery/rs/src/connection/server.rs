@@ -3,6 +3,7 @@ use axum::{
   http::{HeaderMap, StatusCode},
   response::Response,
 };
+use komodo_client::entities::server::Server;
 use serror::AddStatusCode;
 use tracing::warn;
 use transport::{
@@ -15,8 +16,8 @@ use crate::connection::{
 };
 
 pub async fn handler(
-  server_id: String,
-  private_key: String,
+  server: Server,
+  default_private_key: String,
   mut headers: HeaderMap,
   query: String,
   ws: WebSocketUpgrade,
@@ -24,13 +25,13 @@ pub async fn handler(
   let identifiers = ServerHeaderIdentifiers::extract(&mut headers)
     .status_code(StatusCode::UNAUTHORIZED)?;
 
-  let handler = MessageHandler::new(&server_id).await;
+  let handler = MessageHandler::new(&server.id).await;
 
   let (connection, mut write_receiver) =
     PeripheryConnection::new(None);
 
   if let Some(existing_connection) = periphery_connections()
-    .insert(server_id.clone(), connection.clone())
+    .insert(server.id.clone(), connection.clone())
     .await
   {
     existing_connection.cancel();
@@ -38,17 +39,25 @@ pub async fn handler(
 
   Ok(ws.on_upgrade(|socket| async move {
     let handler = super::WebsocketHandler {
-      label: &server_id,
+      label: &server.id,
       socket: AxumWebsocket(socket),
       connection_identifiers: identifiers.build(query.as_bytes()),
-      private_key: &private_key,
+      private_key: if server.config.private_key.is_empty() {
+        &default_private_key
+      } else {
+        &server.config.private_key
+      },
+      expected_public_key: &server.config.public_key,
       write_receiver: &mut write_receiver,
       connection: &connection,
       handler: &handler,
     };
 
     if let Err(e) = handler.handle::<ServerLoginFlow>().await {
-      warn!("Server {server_id} | Client failed to login | {e:#}");
+      warn!(
+        "Server {} | Client failed to login | {e:#}",
+        server.name
+      );
       connection.set_error(e).await;
       return;
     }

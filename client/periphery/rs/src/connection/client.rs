@@ -30,7 +30,16 @@ pub async fn manage_client_connections(
   let specs = servers
     .iter()
     .filter(|s| s.config.enabled)
-    .map(|s| (&s.id, (&s.config.address, &s.config.private_key)))
+    .map(|s| {
+      (
+        &s.id,
+        (
+          &s.config.address,
+          &s.config.private_key,
+          &s.config.public_key,
+        ),
+      )
+    })
     .collect::<HashMap<_, _>>();
 
   // Clear non specced / enabled server connections
@@ -48,7 +57,9 @@ pub async fn manage_client_connections(
   }
 
   // Apply latest connection specs
-  for (server_id, (address, private_key)) in specs {
+  for (server_id, (address, private_key, expected_public_key)) in
+    specs
+  {
     let address = if address.is_empty() {
       address.to_string()
     } else {
@@ -91,6 +102,7 @@ pub async fn manage_client_connections(
       } else {
         private_key.clone()
       },
+      expected_public_key.clone(),
     )
     .await
     {
@@ -106,6 +118,7 @@ pub async fn spawn_client_connection(
   server_id: String,
   address: String,
   private_key: String,
+  expected_public_key: String,
 ) -> anyhow::Result<()> {
   let url = ::url::Url::parse(&address)
     .context("Failed to parse server address")?;
@@ -155,6 +168,7 @@ pub async fn spawn_client_connection(
           query: &[],
         },
         private_key: &private_key,
+        expected_public_key: &expected_public_key,
         write_receiver: &mut write_receiver,
         connection: &connection,
         handler: &handler,

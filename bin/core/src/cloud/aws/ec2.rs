@@ -84,6 +84,8 @@ pub async fn launch_ec2_instance(
     assign_public_ip,
     use_public_ip,
     user_data,
+    private_key: _,
+    public_key: _,
     port: _,
     use_https: _,
     git_providers: _,

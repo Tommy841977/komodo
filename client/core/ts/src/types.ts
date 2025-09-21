@@ -2010,16 +2010,17 @@ export interface ServerConfig {
 	 */
 	enabled: boolean;
 	/**
-	 * The timeout used to reach the server in seconds.
-	 * default: 2
-	 */
-	timeout_seconds: I64;
-	/**
 	 * An optional override private key to use
 	 * to authenticate with periphery agent.
 	 * If this is empty, will use private key in core config.
 	 */
 	private_key?: string;
+	/**
+	 * The accepted public key associated with
+	 * private key of the periphery agent.
+	 * If this is empty, will not validate the Periphery public key.
+	 */
+	public_key?: string;
 	/**
 	 * Sometimes the system stats reports a mount path that is not desired.
 	 * Use this field to filter it out from the report.
@@ -4203,6 +4204,16 @@ export interface AwsBuilderConfig {
 	security_group_ids?: string[];
 	/** The user data to deploy the instance with. */
 	user_data?: string;
+	/**
+	 * A custom private key to use to authenticate with agent.
+	 * Otherwise, use the default Core private key.
+	 */
+	private_key?: string;
+	/**
+	 * An expected public key associated with Periphery private key.
+	 * If empty, doesn't validate Periphery public key.
+	 */
+	public_key?: string;
 	/** Which git providers are available on the AMI */
 	git_providers?: GitProvider[];
 	/** Which docker registries are available on the AMI. */
@@ -8434,6 +8445,11 @@ export interface UrlBuilderConfig {
 	address: string;
 	/** A custom private key to use. Otherwise, use the default private key. */
 	private_key?: string;
+	/**
+	 * An expected public key associated with Periphery private key.
+	 * If empty, doesn't validate Periphery public key.
+	 */
+	public_key?: string;
 }
 
 /** Update dockerfile contents in Files on Server or Git Repo mode. Response: [Update]. */

@@ -14,7 +14,6 @@ use crate::{
 };
 
 use super::{
-  I64,
   alert::SeverityLevel,
   resource::{AddFilters, Resource, ResourceListItem, ResourceQuery},
 };
@@ -92,19 +91,19 @@ pub struct ServerConfig {
   #[partial_default(default_enabled())]
   pub enabled: bool,
 
-  /// The timeout used to reach the server in seconds.
-  /// default: 2
-  #[serde(default = "default_timeout_seconds")]
-  #[builder(default = "default_timeout_seconds()")]
-  #[partial_default(default_timeout_seconds())]
-  pub timeout_seconds: I64,
-
   /// An optional override private key to use
   /// to authenticate with periphery agent.
   /// If this is empty, will use private key in core config.
   #[serde(default)]
   #[builder(default)]
   pub private_key: String,
+
+  /// The accepted public key associated with
+  /// private key of the periphery agent.
+  /// If this is empty, will not validate the Periphery public key.
+  #[serde(default)]
+  #[builder(default)]
+  pub public_key: String,
 
   /// Sometimes the system stats reports a mount path that is not desired.
   /// Use this field to filter it out from the report.
@@ -225,10 +224,6 @@ fn default_enabled() -> bool {
   false
 }
 
-fn default_timeout_seconds() -> i64 {
-  3
-}
-
 fn default_stats_monitoring() -> bool {
   true
 }
@@ -271,7 +266,6 @@ impl Default for ServerConfig {
       address: default_address(),
       external_address: Default::default(),
       enabled: default_enabled(),
-      timeout_seconds: default_timeout_seconds(),
       ignore_mounts: Default::default(),
       stats_monitoring: default_stats_monitoring(),
       auto_prune: default_auto_prune(),
@@ -283,6 +277,7 @@ impl Default for ServerConfig {
       send_version_mismatch_alerts: default_send_alerts(),
       region: Default::default(),
       private_key: Default::default(),
+      public_key: Default::default(),
       cpu_warning: default_cpu_warning(),
       cpu_critical: default_cpu_critical(),
       mem_warning: default_mem_warning(),

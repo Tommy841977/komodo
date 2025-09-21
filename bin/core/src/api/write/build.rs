@@ -442,6 +442,7 @@ async fn get_on_host_periphery(
           } else {
             config.private_key
           },
+          config.public_key,
         )
         .await?;
       // Poll for connection to be estalished
