@@ -1,3 +1,4 @@
+use anyhow::Context;
 use axum::{
   extract::WebSocketUpgrade,
   http::{HeaderMap, StatusCode},
@@ -18,12 +19,19 @@ use crate::connection::{
 pub async fn handler(
   server: Server,
   default_private_key: String,
+  default_public_key: Option<String>,
   mut headers: HeaderMap,
   query: String,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
   let identifiers = ServerHeaderIdentifiers::extract(&mut headers)
     .status_code(StatusCode::UNAUTHORIZED)?;
+
+  let expected_public_key = if server.config.public_key.is_empty() {
+    default_public_key.context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
+  } else {
+    server.config.public_key
+  };
 
   let handler = MessageHandler::new(&server.id).await;
 
@@ -47,7 +55,7 @@ pub async fn handler(
       } else {
         &server.config.private_key
       },
-      expected_public_key: &server.config.public_key,
+      expected_public_key: Some(&expected_public_key),
       write_receiver: &mut write_receiver,
       connection: &connection,
       handler: &handler,
@@ -59,7 +67,6 @@ pub async fn handler(
         server.name
       );
       connection.set_error(e).await;
-      return;
     }
   }))
 }

@@ -180,6 +180,7 @@ pub fn core_config() -> &'static CoreConfig {
       },
 
       // Non secrets
+      periphery_public_key: env.komodo_periphery_public_key.or(config.periphery_public_key),
       title: env.komodo_title.unwrap_or(config.title),
       host: env.komodo_host.unwrap_or(config.host),
       port: env.komodo_port.unwrap_or(config.port),

@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::http::HeaderValue;
-use komodo_client::entities::server::Server;
+use komodo_client::entities::{optional_string, server::Server};
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
@@ -102,7 +102,7 @@ pub async fn manage_client_connections(
       } else {
         private_key.clone()
       },
-      expected_public_key.clone(),
+      optional_string(expected_public_key),
     )
     .await
     {
@@ -118,7 +118,7 @@ pub async fn spawn_client_connection(
   server_id: String,
   address: String,
   private_key: String,
-  expected_public_key: String,
+  expected_public_key: Option<String>,
 ) -> anyhow::Result<()> {
   let url = ::url::Url::parse(&address)
     .context("Failed to parse server address")?;
@@ -168,7 +168,7 @@ pub async fn spawn_client_connection(
           query: &[],
         },
         private_key: &private_key,
-        expected_public_key: &expected_public_key,
+        expected_public_key: expected_public_key.as_deref(),
         write_receiver: &mut write_receiver,
         connection: &connection,
         handler: &handler,

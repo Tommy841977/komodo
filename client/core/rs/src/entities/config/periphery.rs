@@ -195,20 +195,24 @@ pub struct Env {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PeripheryConfig {
   /// The private key used with noise handshake.
+  /// If not provided, will generate random default.
   #[serde(default = "default_private_key")]
   pub private_key: String,
   /// Optionally pin a specific Core public key
   /// for additional trust.
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub core_public_key: Option<String>,
 
   // ============================
   // = OUTBOUND CONNECTION MODE =
   // ============================
   /// Address of Komodo Core when connecting outbound
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub core_host: Option<String>,
 
   /// Server name / id to connect as
   /// TODO: explore using device identifier like MAC
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub connect_as: Option<String>,
 
   // ===========================
@@ -245,10 +249,12 @@ pub struct PeripheryConfig {
 
   /// Path to the ssl key.
   /// Default: `${root_directory}/ssl/key.pem`.
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub ssl_key_file: Option<PathBuf>,
 
   /// Path to the ssl cert.
   /// Default: `${root_directory}/ssl/cert.pem`.
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub ssl_cert_file: Option<PathBuf>,
 
   // ==================
@@ -270,16 +276,19 @@ pub struct PeripheryConfig {
   /// The system directory where Komodo managed repos will be cloned.
   /// If not provided, will default to `${root_directory}/repos`.
   /// Default: empty
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub repo_dir: Option<PathBuf>,
 
   /// The system directory where stacks will managed.
   /// If not provided, will default to `${root_directory}/stacks`.
   /// Default: empty
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub stack_dir: Option<PathBuf>,
 
   /// The system directory where builds will managed.
   /// If not provided, will default to `${root_directory}/builds`.
   /// Default: empty
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub build_dir: Option<PathBuf>,
 
   /// Whether to disable the create terminal

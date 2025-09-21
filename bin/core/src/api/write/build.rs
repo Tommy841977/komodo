@@ -7,6 +7,7 @@ use database::{
   mongo_indexed::doc, mungos::mongodb::bson::oid::ObjectId,
 };
 use formatting::format_serror;
+use komodo_client::entities::optional_string;
 use komodo_client::{
   api::write::*,
   entities::{
@@ -442,7 +443,7 @@ async fn get_on_host_periphery(
           } else {
             config.private_key
           },
-          config.public_key,
+          optional_string(config.public_key),
         )
         .await?;
       // Poll for connection to be estalished

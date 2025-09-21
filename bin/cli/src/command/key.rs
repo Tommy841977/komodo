@@ -16,7 +16,7 @@ pub async fn handle(command: &KeyCommand) -> anyhow::Result<()> {
       Ok(())
     }
     KeyCommand::Compute { private_key } => {
-      let public_key = noise::compute_public_key(&private_key)
+      let public_key = noise::compute_public_key(private_key)
         .context("Failed to compute public key")?;
       println!("\nPublic Key: {}", public_key.green().bold());
       Ok(())

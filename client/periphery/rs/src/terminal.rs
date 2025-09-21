@@ -187,10 +187,12 @@ impl Stream for ReceiverStream {
     mut self: Pin<&mut Self>,
     cx: &mut task::Context<'_>,
   ) -> Poll<Option<Self::Item>> {
-    match self.receiver.poll_recv(cx).map(|bytes| {
-      bytes.map(|bytes| data_from_transport_bytes(bytes))
-    }) {
-      Poll::Ready(Some(Ok(bytes))) if &bytes == END_OF_OUTPUT => {
+    match self
+      .receiver
+      .poll_recv(cx)
+      .map(|bytes| bytes.map(data_from_transport_bytes))
+    {
+      Poll::Ready(Some(Ok(bytes))) if bytes == END_OF_OUTPUT => {
         self.cleanup();
         Poll::Ready(None)
       }

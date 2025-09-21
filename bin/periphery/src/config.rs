@@ -11,6 +11,15 @@ use komodo_client::entities::{
   logger::{LogConfig, LogLevel},
 };
 
+/// Should call in startup to ensure Periphery errors without valid private key.
+pub fn periphery_public_key() -> &'static String {
+  static PERIPHERY_PUBLIC_KEY: OnceLock<String> = OnceLock::new();
+  PERIPHERY_PUBLIC_KEY.get_or_init(|| {
+    noise::compute_public_key(&periphery_config().private_key)
+      .unwrap()
+  })
+}
+
 pub fn periphery_config() -> &'static PeripheryConfig {
   static PERIPHERY_CONFIG: OnceLock<PeripheryConfig> =
     OnceLock::new();

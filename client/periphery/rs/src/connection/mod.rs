@@ -33,7 +33,7 @@ pub struct WebsocketHandler<'a, W> {
   pub socket: W,
   pub connection_identifiers: ConnectionIdentifiers<'a>,
   pub private_key: &'a str,
-  pub expected_public_key: &'a str,
+  pub expected_public_key: Option<&'a str>,
   pub write_receiver: &'a mut BufferedReceiver<Bytes>,
   pub connection: &'a PeripheryConnection,
   pub handler: &'a MessageHandler,
@@ -133,14 +133,17 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
 }
 
 pub struct PeripheryPublicKeyValidator<'a> {
-  pub expected: &'a str,
+  /// If None, ignore public key.
+  pub expected: Option<&'a str>,
 }
 impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
   fn validate(&self, public_key: String) -> anyhow::Result<()> {
-    if self.expected.is_empty() || self.expected == public_key {
-      Ok(())
-    } else {
+    if let Some(expected) = self.expected
+      && public_key != expected
+    {
       Err(anyhow!("Public key does not match expected"))
+    } else {
+      Ok(())
     }
   }
 }

@@ -81,7 +81,6 @@ async fn handler(
     };
     if let Err(e) = handler.handle::<ServerLoginFlow>().await {
       warn!("Core failed to login to connection | {e:#}");
-      return;
     }
   }))
 }

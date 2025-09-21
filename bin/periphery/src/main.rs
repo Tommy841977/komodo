@@ -1,5 +1,7 @@
 use anyhow::anyhow;
 
+use crate::config::periphery_public_key;
+
 #[macro_use]
 extern crate tracing;
 
@@ -17,6 +19,8 @@ async fn app() -> anyhow::Result<()> {
   logger::init(&config.logging)?;
 
   info!("Komodo Periphery version: v{}", env!("CARGO_PKG_VERSION"));
+  // Init public key to crash on failure
+  info!("Periphery Public Key: {}", periphery_public_key());
 
   if config.pretty_startup_config {
     info!("{:#?}", config.sanitized());

@@ -64,13 +64,13 @@ export const ServerConfig = ({
             labelHidden: true,
             components: {
               public_key: {
-                label: "Inbound Public Key",
+                label: "Periphery Public Key",
                 description:
-                  "If provided, the associated private key must be set as Periphery 'private_key'. For Periphery -> Core connection, this is required for Periphery to be able to connect.",
+                  "If provided, the associated private key must be set as Periphery 'private_key'. For Periphery -> Core connection, either this or using 'periphery_public_key' in Core config is required for Periphery to be able to connect.",
                 placeholder: "custom-public-key",
               },
               private_key: {
-                label: "Outbound Private Key",
+                label: "Core Private Key",
                 description:
                   "Optional. A custom private key used to authenticate Periphery connection. The associated public key must match Periphery 'core_public_key'. If not provided, will use 'private_key' in Core config. Max length of 32 characters.",
                 placeholder: "custom-private-key",

@@ -48,7 +48,7 @@ async fn app() -> anyhow::Result<()> {
 
   info!("Komodo Core version: v{}", env!("CARGO_PKG_VERSION"));
   // Init public key to crash on failure
-  info!("Public Key: {}", core_public_key());
+  info!("Core Public Key: {}", core_public_key());
 
   match (
     config.pretty_startup_config,

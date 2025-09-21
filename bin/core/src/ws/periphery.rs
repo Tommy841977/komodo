@@ -20,6 +20,7 @@ pub async fn handler(
   periphery_client::connection::server::handler(
     server,
     core_config().private_key.clone(),
+    core_config().periphery_public_key.clone(),
     headers,
     query,
     ws,

@@ -6,7 +6,7 @@ use formatting::muted;
 use komodo_client::entities::{
   Version,
   builder::{AwsBuilderConfig, Builder, BuilderConfig},
-  komodo_timestamp,
+  komodo_timestamp, optional_string,
   server::Server,
   update::{Log, Update},
 };
@@ -59,7 +59,7 @@ pub async fn get_builder_periphery(
           } else {
             config.private_key
           },
-          config.public_key,
+          optional_string(config.public_key),
         )
         .await?;
       periphery
@@ -125,7 +125,7 @@ async fn get_aws_builder(
       } else {
         config.private_key
       },
-      config.public_key,
+      optional_string(config.public_key),
     )
     .await?;
 

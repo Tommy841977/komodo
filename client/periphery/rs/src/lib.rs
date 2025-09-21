@@ -51,7 +51,7 @@ impl PeripheryClient {
     server_id: String,
     address: &str,
     private_key: String,
-    expected_public_key: String,
+    expected_public_key: Option<String>,
   ) -> anyhow::Result<PeripheryClient> {
     if address.is_empty() {
       return Err(anyhow!("Server address cannot be empty"));
