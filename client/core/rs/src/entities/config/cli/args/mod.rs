@@ -6,6 +6,7 @@ use crate::api::execute::Execution;
 
 pub mod container;
 pub mod database;
+pub mod key;
 pub mod list;
 pub mod update;
 
@@ -51,6 +52,19 @@ pub enum Command {
     unsanitized: bool,
   },
 
+  /// Public-Private key utilities
+  Key {
+    #[command(subcommand)]
+    command: key::KeyCommand,
+  },
+
+  /// Database utilities. (alias: `db`)
+  #[clap(alias = "db")]
+  Database {
+    #[command(subcommand)]
+    command: database::DatabaseCommand,
+  },
+
   /// Container info (aliases: `ps`, `cn`, `containers`)
   #[clap(alias = "ps", alias = "cn", alias = "containers")]
   Container(container::Container),
@@ -78,13 +92,6 @@ pub enum Command {
   Update {
     #[command(subcommand)]
     command: update::UpdateCommand,
-  },
-
-  /// Database utilities. (alias: `db`)
-  #[clap(alias = "db")]
-  Database {
-    #[command(subcommand)]
-    command: database::DatabaseCommand,
   },
 }
 

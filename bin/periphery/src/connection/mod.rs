@@ -58,7 +58,7 @@ pub fn init_response_channel() {
 async fn handle_websocket<L: LoginFlow>(
   mut socket: impl Websocket,
   connection_identifiers: ConnectionIdentifiers<'_>,
-  private_key: &[u8],
+  private_key: &str,
   write_receiver: &mut BufferedReceiver<Bytes>,
 ) -> anyhow::Result<()> {
   L::login(&mut socket, connection_identifiers, private_key).await?;

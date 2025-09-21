@@ -41,6 +41,12 @@ async fn app() -> anyhow::Result<()> {
       }
       Ok(())
     }
+    args::Command::Key { command } => {
+      command::key::handle(command).await
+    }
+    args::Command::Database { command } => {
+      command::database::handle(command).await
+    }
     args::Command::Container(container) => {
       command::container::handle(container).await
     }
@@ -53,9 +59,6 @@ async fn app() -> anyhow::Result<()> {
     }
     args::Command::Update { command } => {
       command::update::handle(command).await
-    }
-    args::Command::Database { command } => {
-      command::database::handle(command).await
     }
   }
 }

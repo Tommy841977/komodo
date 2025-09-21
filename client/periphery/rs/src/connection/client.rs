@@ -134,7 +134,7 @@ async fn spawn_client_connection(
           accept: accept.as_bytes(),
           query: &[],
         },
-        b"TEST",
+        "TEST",
         &mut write_receiver,
         &connection,
         &handler,

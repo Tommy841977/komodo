@@ -52,7 +52,7 @@ pub async fn handler(
         query: query.as_bytes(),
         accept: ws_accept.as_bytes(),
       },
-      b"TEST",
+      "TEST",
       &mut write_receiver,
       &connection,
       &handler,

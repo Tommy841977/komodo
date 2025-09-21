@@ -30,7 +30,7 @@ pub mod server;
 async fn handle_websocket<L: LoginFlow>(
   mut socket: impl Websocket,
   connection_identifiers: ConnectionIdentifiers<'_>,
-  private_key: &[u8],
+  private_key: &str,
   write_receiver: &mut BufferedReceiver<Bytes>,
   connection: &PeripheryConnection,
   handler: &MessageHandler,

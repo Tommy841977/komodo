@@ -93,7 +93,7 @@ async fn handler(
     if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
       socket,
       connection_identifiers,
-      b"TEST",
+      "TEST",
       &mut write_receiver,
     )
     .await

@@ -19,6 +19,7 @@ komodo_client.workspace = true
 database.workspace = true
 config.workspace = true
 logger.workspace = true
+noise.workspace = true
 # external
 futures-util.workspace = true
 comfy-table.workspace = true

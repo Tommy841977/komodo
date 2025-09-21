@@ -30,5 +30,4 @@ tokio.workspace = true
 serde.workspace = true
 axum.workspace = true
 uuid.workspace = true
-sha1.workspace = true
 url.workspace = true
