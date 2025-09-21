@@ -5726,6 +5726,8 @@ export interface GetCoreInfoResponse {
     enable_fancy_toml: boolean;
     /** TZ identifier Core is using, if manually set. */
     timezone: string;
+    /** Default public key allowing this Core to authenticate to Periphery agents. */
+    public_key: string;
 }
 /** Get a specific deployment by name or id. Response: [Deployment]. */
 export interface GetDeployment {

@@ -47,6 +47,8 @@ async fn app() -> anyhow::Result<()> {
   };
 
   info!("Komodo Core version: v{}", env!("CARGO_PKG_VERSION"));
+  // Init public key to crash on failure
+  info!("Public Key: {}", core_public_key());
 
   match (
     config.pretty_startup_config,
@@ -58,8 +60,6 @@ async fn app() -> anyhow::Result<()> {
     (false, false) => info!("{:?}", config.sanitized()),
   }
 
-  // Init public key to crash on failure
-  core_public_key();
   // Init jwt client to crash on failure
   state::jwt_client();
   tokio::join!(

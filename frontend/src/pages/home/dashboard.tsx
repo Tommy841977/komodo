@@ -4,7 +4,7 @@ import { ResourceComponents } from "@components/resources";
 import { ResourceLink, ResourceNameSimple } from "@components/resources/common";
 import { ServerStatsMini } from "@components/resources/server";
 import { TagsWithBadge } from "@components/tags";
-import { StatusBadge, TemplateMarker } from "@components/util";
+import { CopyCorePubkey, StatusBadge, TemplateMarker } from "@components/util";
 import { useDashboardPreferences } from "@lib/dashboard-preferences";
 import { Button } from "@ui/button";
 import { Eye, EyeOff } from "lucide-react";
@@ -31,7 +31,6 @@ import { UpdateAvailable as DeploymentUpdateAvailable } from "@components/resour
 export default function Dashboard() {
   const noResources = useNoResources();
   const user = useUser().data!;
-  const { preferences, updatePreference } = useDashboardPreferences();
 
   return (
     <>
@@ -41,29 +40,9 @@ export default function Dashboard() {
         icon={<Box className="w-8 h-8" />}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                updatePreference(
-                  "showServerStats",
-                  !preferences.showServerStats,
-                )
-              }
-              className="flex items-center gap-2"
-            >
-              {preferences.showServerStats ? (
-                <>
-                  <EyeOff className="w-4 h-4" />
-                  <span>Hide Server Stats</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4" />
-                  <span>Show Server Stats</span>
-                </>
-              )}
-            </Button>
+            <ShowServerStats />
             <ExportButton />
+            <CopyCorePubkey />
           </div>
         }
       >
@@ -97,7 +76,7 @@ const ResourceRow = ({ type }: { type: UsableResource }) => {
   const _recents = useUser().data?.recents?.[type]?.slice(0, 6);
   const _resources = useRead(`List${type}s`, {}).data;
   const recents = _recents?.filter(
-    (recent) => !_resources?.every((resource) => resource.id !== recent),
+    (recent) => !_resources?.every((resource) => resource.id !== recent)
   );
   const resources = _resources
     ?.filter((r) => !recents?.includes(r.id))
@@ -171,7 +150,7 @@ const RecentCard = ({
       className={cn(
         "w-full px-3 py-2 border rounded-md hover:bg-accent/25 hover:-translate-y-1 transition-all duration-1000 linear flex flex-col justify-between",
         showServerStats ? "min-h-32" : "h-20",
-        className,
+        className
       )}
     >
       <div className="flex items-center justify-between">
@@ -184,11 +163,11 @@ const RecentCard = ({
         {type === "Stack" && <StackUpdateAvailable id={id} small />}
       </div>
 
-      <div 
+      <div
         className={cn(
-          "overflow-hidden w-full transition-opacity transition-all duration-1000 linear",
-          showServerStats 
-            ? "max-h-40 opacity-100 py-2" 
+          "overflow-hidden w-full transition-all duration-1000 linear",
+          showServerStats
+            ? "max-h-40 opacity-100 py-2"
             : "max-h-0 opacity-0 py-0"
         )}
       >
@@ -349,5 +328,30 @@ const ActiveResources = () => {
         />
       </Section>
     </div>
+  );
+};
+
+const ShowServerStats = () => {
+  const { preferences, updatePreference } = useDashboardPreferences();
+  return (
+    <Button
+      variant="outline"
+      onClick={() =>
+        updatePreference("showServerStats", !preferences.showServerStats)
+      }
+      className="flex items-center gap-2"
+    >
+      {preferences.showServerStats ? (
+        <>
+          <EyeOff className="w-4 h-4" />
+          <span>Hide Server Stats</span>
+        </>
+      ) : (
+        <>
+          <Eye className="w-4 h-4" />
+          <span>Show Server Stats</span>
+        </>
+      )}
+    </Button>
   );
 };

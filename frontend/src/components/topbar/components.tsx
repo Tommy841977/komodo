@@ -594,6 +594,7 @@ export const KeyboardShortcuts = () => {
           <KeyboardShortcut label="Go to Builds" keys={["Shift", "B"]} />
           <KeyboardShortcut label="Go to Repos" keys={["Shift", "R"]} />
           <KeyboardShortcut label="Go to Procedures" keys={["Shift", "P"]} />
+          <KeyboardShortcut label="Go to Variables" keys={["Shift", "V"]} />
 
           <KeyboardShortcut label="Search" keys={["Shift", "S"]} />
           <KeyboardShortcut label="Add Filter Tag" keys={["Shift", "T"]} />

@@ -2,7 +2,7 @@ import { ExportButton } from "@components/export";
 import { Page, Section } from "@components/layouts";
 import { ResourceComponents } from "@components/resources";
 import { TagsFilter } from "@components/tags";
-import { ShowHideButton } from "@components/util";
+import { CopyCorePubkey, ShowHideButton } from "@components/util";
 import {
   useFilterResources,
   useNoResources,
@@ -36,6 +36,7 @@ export default function AllResources() {
           <div className="flex items-center gap-2">
             <TagsFilter />
             <ExportButton tags={tags} />
+            <CopyCorePubkey />
           </div>
         </div>
       }

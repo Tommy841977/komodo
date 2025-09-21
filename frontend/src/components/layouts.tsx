@@ -19,10 +19,12 @@ import { Topbar } from "./topbar";
 import { cn, usableResourcePath } from "@lib/utils";
 import { Sidebar } from "./sidebar";
 import { ResourceNameSimple } from "./resources/common";
-import { useShiftKeyListener } from "@lib/hooks";
+import { useSettingsView, useShiftKeyListener } from "@lib/hooks";
 
 export const Layout = () => {
   const nav = useNavigate();
+  const [_, setSettingsView] = useSettingsView();
+
   useShiftKeyListener("H", () => nav("/"));
   useShiftKeyListener("G", () => nav("/servers"));
   useShiftKeyListener("Z", () => nav("/stacks"));
@@ -30,6 +32,10 @@ export const Layout = () => {
   useShiftKeyListener("B", () => nav("/builds"));
   useShiftKeyListener("R", () => nav("/repos"));
   useShiftKeyListener("P", () => nav("/procedures"));
+  useShiftKeyListener("V", () => {
+    setSettingsView("Variables");
+    nav("/settings");
+  });
 
   return (
     <>

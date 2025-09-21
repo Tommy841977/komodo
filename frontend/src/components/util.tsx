@@ -24,6 +24,7 @@ import {
   EthernetPort,
   FolderGit,
   HardDrive,
+  KeyRound,
   LinkIcon,
   Loader2,
   Network,
@@ -92,6 +93,7 @@ import {
   SelectValue,
 } from "@ui/select";
 import { useServer } from "./resources/server";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ui/hover-card";
 
 export const ActionButton = forwardRef<
   HTMLButtonElement,
@@ -295,45 +297,41 @@ export const ConfirmButton = forwardRef<
     disabled?: boolean;
     className?: string;
   }
->(({
-  variant,
-  size,
-  title,
-  icon,
-  disabled,
-  loading,
-  onClick,
-  className,
-}, ref) => {
-  const [confirmed, set] = useState(false);
+>(
+  (
+    { variant, size, title, icon, disabled, loading, onClick, className },
+    ref
+  ) => {
+    const [confirmed, set] = useState(false);
 
-  return (
-    <ActionButton
-      ref={ref}
-      variant={variant}
-      size={size}
-      title={confirmed ? "Confirm" : title}
-      icon={confirmed ? <Check className="w-4 h-4" /> : icon}
-      disabled={disabled}
-      onClick={
-        confirmed
-          ? (e) => {
-              e.stopPropagation();
-              onClick && onClick(e);
-              set(false);
-            }
-          : (e) => {
-              e.stopPropagation();
-              set(true);
-            }
-      }
-      onBlur={() => set(false)}
-      loading={loading}
-      className={className}
-      data-confirm-button={true}
-    />
-  );
-});
+    return (
+      <ActionButton
+        ref={ref}
+        variant={variant}
+        size={size}
+        title={confirmed ? "Confirm" : title}
+        icon={confirmed ? <Check className="w-4 h-4" /> : icon}
+        disabled={disabled}
+        onClick={
+          confirmed
+            ? (e) => {
+                e.stopPropagation();
+                onClick && onClick(e);
+                set(false);
+              }
+            : (e) => {
+                e.stopPropagation();
+                set(true);
+              }
+        }
+        onBlur={() => set(false)}
+        loading={loading}
+        className={className}
+        data-confirm-button={true}
+      />
+    );
+  }
+);
 
 export const UserSettings = () => (
   <Link to="/settings">
@@ -381,6 +379,26 @@ export const CopyButton = ({
     >
       {copied ? <Check className="w-4 h-4" /> : icon}
     </Button>
+  );
+};
+
+export const CopyCorePubkey = () => {
+  const res = useRead("GetCoreInfo", {}).data;
+  return (
+    <HoverCard>
+      <HoverCardTrigger>
+        <CopyButton
+          label="Core Pubkey"
+          icon={<KeyRound className="w-4 h-4" />}
+          content={res?.public_key}
+        />
+      </HoverCardTrigger>
+      <HoverCardContent align="end" sideOffset={10} className="w-fit">
+        <div className="w-fit max-w-[200px] text-sm overflow-hidden overflow-ellipsis">
+          Copy Core Pubkey
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 };
 
@@ -533,7 +551,7 @@ export const StatusBadge = ({
           "min-h-[1.5rem]", // Minimum height to match other badges, but can grow
           color
         )}
-        style={{ 
+        style={{
           background,
           minWidth: "fit-content",
           maxWidth: "80px", // This controls when it wraps to two lines
@@ -1245,9 +1263,10 @@ export const ContainerPortLink = ({
   if (!server_address) return null;
 
   const isHttps = server_address.protocol === "https:";
-  const link = host_port === "443" && isHttps
-    ? `https://${server_address.hostname}`
-    : `http://${server_address.hostname}:${host_port}`;
+  const link =
+    host_port === "443" && isHttps
+      ? `https://${server_address.hostname}`
+      : `http://${server_address.hostname}:${host_port}`;
 
   const uniqueHostPorts = Array.from(
     new Set(
