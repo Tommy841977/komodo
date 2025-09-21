@@ -132,6 +132,24 @@ const AwsBuilderConfig = ({ id }: { id: string }) => {
         ],
         additional: [
           {
+            label: "Auth",
+            labelHidden: true,
+            components: {
+              public_key: {
+                label: "Inbound Public Key",
+                description:
+                  "If provided, the associated private key must be set as Periphery 'private_key'. For Periphery -> Core connection, this is required for Periphery to be able to connect.",
+                placeholder: "custom-public-key",
+              },
+              private_key: {
+                label: "Outbound Private Key",
+                description:
+                  "Optional. A custom private key used to authenticate Periphery connection. The associated public key must match Periphery 'core_public_key'. If not provided, will use 'private_key' in Core config. Max length of 32 characters.",
+                placeholder: "custom-private-key",
+              },
+            },
+          },
+          {
             label: "Git Providers",
             boldLabel: false,
             description:
@@ -329,10 +347,23 @@ const UrlBuilderConfig = ({ id }: { id: string }) => {
                 description: "The address of the Periphery agent",
                 placeholder: "https://periphery:8120",
               },
-              passkey: {
+            },
+          },
+          {
+            label: "Auth",
+            labelHidden: true,
+            components: {
+              public_key: {
+                label: "Inbound Public Key",
                 description:
-                  "Use a custom passkey to authenticate with Periphery",
-                placeholder: "Custom passkey",
+                  "If provided, the associated private key must be set as Periphery 'private_key'. For Periphery -> Core connection, this is required for Periphery to be able to connect.",
+                placeholder: "custom-public-key",
+              },
+              private_key: {
+                label: "Outbound Private Key",
+                description:
+                  "Optional. A custom private key used to authenticate Periphery connection. The associated public key must match Periphery 'core_public_key'. If not provided, will use 'private_key' in Core config. Max length of 32 characters.",
+                placeholder: "custom-private-key",
               },
             },
           },

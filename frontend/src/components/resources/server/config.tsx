@@ -60,12 +60,30 @@ export const ServerConfig = ({
             },
           },
           {
+            label: "Auth",
+            labelHidden: true,
+            components: {
+              public_key: {
+                label: "Inbound Public Key",
+                description:
+                  "If provided, the associated private key must be set as Periphery 'private_key'. For Periphery -> Core connection, this is required for Periphery to be able to connect.",
+                placeholder: "custom-public-key",
+              },
+              private_key: {
+                label: "Outbound Private Key",
+                description:
+                  "Optional. A custom private key used to authenticate Periphery connection. The associated public key must match Periphery 'core_public_key'. If not provided, will use 'private_key' in Core config. Max length of 32 characters.",
+                placeholder: "custom-private-key",
+              },
+            },
+          },
+          {
             label: "Address",
             labelHidden: true,
             components: {
               address: {
                 description:
-                  "The http/s address of periphery in your network, eg. https://12.34.56.78:8120",
+                  "The http/s address of periphery in your network for Core -> Periphery connnection.",
                 placeholder: "https://12.34.56.78:8120",
               },
               external_address: {
@@ -77,16 +95,6 @@ export const ServerConfig = ({
                 placeholder: "Region. Optional.",
                 description:
                   "Attach a region to the server for visual grouping.",
-              },
-            },
-          },
-          {
-            label: "Timeout",
-            labelHidden: true,
-            components: {
-              timeout_seconds: {
-                description:
-                  "The timeout used with the server health check, in seconds.",
               },
             },
           },
