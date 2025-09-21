@@ -14,22 +14,13 @@ use axum::{
   routing::get,
 };
 use axum_server::tls_rustls::RustlsConfig;
-use bytes::Bytes;
 use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
-  auth::{
-    ConnectionIdentifiers, compute_accept, handle_server_side_login,
-  },
-  websocket::{
-    WebsocketMessage, WebsocketReceiver, WebsocketSender,
-    axum::AxumWebsocket,
-  },
+  auth::{ConnectionIdentifiers, ServerLoginFlow, compute_accept},
+  websocket::axum::AxumWebsocket,
 };
 
-use crate::{
-  config::periphery_config,
-  connection::{handle_incoming_bytes, ws_receiver},
-};
+use crate::{config::periphery_config, connection::ws_receiver};
 
 pub async fn run() -> anyhow::Result<()> {
   let config = periphery_config();
@@ -90,71 +81,26 @@ async fn handler(
   let ws_accept = compute_accept(ws_key.as_bytes());
 
   Ok(ws.on_upgrade(|socket| async move {
-    let mut socket = AxumWebsocket(socket);
+    let socket = AxumWebsocket(socket);
 
-    let id = ConnectionIdentifiers {
+    let connection_identifiers = ConnectionIdentifiers {
       host: host.as_bytes(),
       query: &[],
       accept: ws_accept.as_bytes(),
     };
 
-    if let Err(e) =
-      handle_server_side_login(&mut socket, id, b"TEMP_SERVER_PK")
-        .await
+    // TODO: source the pk
+    if let Err(e) = super::handle_websocket::<ServerLoginFlow>(
+      socket,
+      connection_identifiers,
+      b"TEST",
+      &mut write_receiver,
+    )
+    .await
     {
-      warn!("Client failed to login | {e:#}");
+      warn!("Core failed to login to connection | {e:#}");
       return;
-    };
-
-    let (mut ws_write, mut ws_read) = socket.split();
-
-    let forward_writes = async {
-      loop {
-        let msg = match write_receiver.recv().await {
-          // Sender Dropped (shouldn't happen, it is static).
-          None => break,
-          // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Bytes::copy_from_slice(msg),
-        };
-        match ws_write.send(msg).await {
-          // Clears the stored message from receiver buffer.
-          // TODO: Move after response ack.
-          Ok(_) => write_receiver.clear_buffer(),
-          Err(e) => {
-            warn!("Failed to send response | {e:?}");
-            let _ = ws_write.close(None).await;
-            break;
-          }
-        }
-      }
-    };
-
-    let handle_reads = async {
-      loop {
-        match ws_read.recv().await {
-          Ok(WebsocketMessage::Binary(bytes)) => {
-            handle_incoming_bytes(bytes).await
-          }
-          Ok(WebsocketMessage::Close(frame)) => {
-            warn!("Connection closed with frame: {frame:?}");
-            break;
-          }
-          Ok(WebsocketMessage::Closed) => {
-            warn!("Connection already closed");
-            break;
-          }
-          Err(e) => {
-            error!("Failed to read websocket message | {e:?}");
-            break;
-          }
-        };
-      }
-    };
-
-    tokio::select! {
-      _ = forward_writes => {},
-      _ = handle_reads => {},
-    };
+    }
   }))
 }
 

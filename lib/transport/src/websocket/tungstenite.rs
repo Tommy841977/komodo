@@ -20,6 +20,14 @@ impl Websocket for TungsteniteWebsocket {
   type CloseFrame = CloseFrame;
   type Error = tungstenite::Error;
 
+  fn split(self) -> (impl WebsocketSender, impl WebsocketReceiver) {
+    let (tx, rx) = self.0.split();
+    (
+      TungsteniteWebsocketSender(tx),
+      TungsteniteWebsocketReceiver(rx),
+    )
+  }
+
   async fn recv(
     &mut self,
   ) -> Result<WebsocketMessage<Self::CloseFrame>, Self::Error> {
@@ -38,18 +46,6 @@ impl Websocket for TungsteniteWebsocket {
     frame: Option<Self::CloseFrame>,
   ) -> Result<(), Self::Error> {
     self.0.close(frame).await
-  }
-}
-
-impl TungsteniteWebsocket {
-  pub fn split(
-    self,
-  ) -> (TungsteniteWebsocketSender, TungsteniteWebsocketReceiver) {
-    let (tx, rx) = self.0.split();
-    (
-      TungsteniteWebsocketSender(tx),
-      TungsteniteWebsocketReceiver(rx),
-    )
   }
 }
 

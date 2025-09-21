@@ -2,17 +2,14 @@ use std::time::Duration;
 
 use anyhow::Context;
 use axum::http::HeaderValue;
-use bytes::Bytes;
 use transport::{
-  auth::{ConnectionIdentifiers, handle_client_side_login},
+  auth::{ClientLoginFlow, ConnectionIdentifiers},
   fix_ws_address,
-  websocket::{
-    WebsocketMessage, WebsocketReceiver, WebsocketSender,
-    tungstenite::TungsteniteWebsocket,
-  },
+  websocket::tungstenite::TungsteniteWebsocket,
 };
+use url::Url;
 
-use crate::connection::{handle_incoming_bytes, ws_receiver};
+use crate::connection::ws_receiver;
 
 pub async fn handler(
   core_host: &str,
@@ -30,100 +27,49 @@ pub async fn handler(
     .context("Websocket handler called more than once.")?;
 
   let core_host = fix_ws_address(core_host);
-  let url = format!(
+  let core_endpoint = format!(
     "{core_host}/ws/periphery?server={}",
     urlencoding::encode(connect_as)
   );
-  let parsed_url =
-    ::url::Url::parse(&url).context("Failed to parse ws url")?;
-  let host: Vec<u8> = parsed_url
-    .host()
-    .context("url has no host")?
-    .to_string()
-    .into();
-  let query =
-    parsed_url.query().context("url has no query")?.as_bytes();
+  let url =
+    Url::parse(&core_endpoint).context("Failed to parse ws url")?;
+  let host: Vec<u8> =
+    url.host().context("url has no host")?.to_string().into();
+  let query = url.query().context("url has no query")?.as_bytes();
 
   info!("Initiating outbound connection to {url}");
 
   loop {
-    let (mut socket, accept) = match connect_websocket(&url).await {
-      Ok(res) => res,
-      Err(e) => {
-        warn!("{e:#}");
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        continue;
-      }
-    };
+    let (socket, accept) =
+      match connect_websocket(&core_endpoint).await {
+        Ok(res) => res,
+        Err(e) => {
+          warn!("{e:#}");
+          tokio::time::sleep(Duration::from_secs(5)).await;
+          continue;
+        }
+      };
 
     info!("Connected to core connection websocket");
 
-    let id = ConnectionIdentifiers {
+    let connection_identifiers = ConnectionIdentifiers {
       host: &host,
       accept: accept.as_bytes(),
       query,
     };
 
     // TODO: source the pk
-    if let Err(e) =
-      handle_client_side_login(&mut socket, id, b"RANDOM_PRIVATE_KEY")
-        .await
+    if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
+      socket,
+      connection_identifiers,
+      b"TEST",
+      &mut write_receiver,
+    )
+    .await
     {
       warn!("Failed to login | {e:#}");
       tokio::time::sleep(Duration::from_secs(5)).await;
       continue;
-    };
-
-    info!("Logged in to core connection websocket");
-
-    let (mut ws_write, mut ws_read) = socket.split();
-
-    let forward_writes = async {
-      loop {
-        let msg = match write_receiver.recv().await {
-          // Sender Dropped (shouldn't happen, it is static).
-          None => break,
-          // This has to copy the bytes to follow ownership rules.
-          Some(msg) => Bytes::copy_from_slice(msg),
-        };
-        match ws_write.send(msg).await {
-          // Clears the stored message from receiver buffer.
-          // TODO: Move after response ack.
-          Ok(_) => write_receiver.clear_buffer(),
-          Err(e) => {
-            warn!("Failed to send response | {e:?}");
-            let _ = ws_write.close(None).await;
-            break;
-          }
-        }
-      }
-    };
-
-    let handle_reads = async {
-      loop {
-        match ws_read.recv().await {
-          Ok(WebsocketMessage::Binary(bytes)) => {
-            handle_incoming_bytes(bytes).await
-          }
-          Ok(WebsocketMessage::Close(frame)) => {
-            warn!("Connection closed with frame: {frame:?}");
-            break;
-          }
-          Ok(WebsocketMessage::Closed) => {
-            warn!("Connection already closed");
-            break;
-          }
-          Err(e) => {
-            error!("Failed to read websocket message | {e:?}");
-            break;
-          }
-        };
-      }
-    };
-
-    tokio::select! {
-      _ = forward_writes => {},
-      _ = handle_reads => {},
     };
   }
 }

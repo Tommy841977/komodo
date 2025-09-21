@@ -2,7 +2,7 @@ use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use uuid::Uuid;
 
-use crate::{MessageState, auth::AuthType};
+use crate::MessageState;
 
 /// Serializes data + channel id + state to byte vec.
 /// The last byte is the State, and the 16 before that is the Uuid.
@@ -91,22 +91,6 @@ impl MessageState {
       MessageState::Terminal => 2,
       MessageState::Request => 3,
       MessageState::InProgress => 4,
-    }
-  }
-}
-
-impl AuthType {
-  pub fn from_byte(byte: u8) -> AuthType {
-    match byte {
-      0 => AuthType::Passkey,
-      _ => AuthType::Noise,
-    }
-  }
-
-  pub fn as_byte(&self) -> u8 {
-    match self {
-      AuthType::Passkey => 0,
-      AuthType::Noise => 1,
     }
   }
 }

@@ -12,8 +12,13 @@ use tokio::sync::{
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use transport::{
+  auth::{ConnectionIdentifiers, LoginFlow},
   bytes::id_from_transport_bytes,
   channel::{BufferedReceiver, buffered_channel},
+  websocket::{
+    Websocket, WebsocketMessage, WebsocketReceiver as _,
+    WebsocketSender as _,
+  },
 };
 use uuid::Uuid;
 
@@ -21,6 +26,84 @@ use crate::periphery_channels;
 
 pub mod client;
 pub mod server;
+
+async fn handle_websocket<L: LoginFlow>(
+  mut socket: impl Websocket,
+  connection_identifiers: ConnectionIdentifiers<'_>,
+  private_key: &[u8],
+  write_receiver: &mut BufferedReceiver<Bytes>,
+  connection: &PeripheryConnection,
+  handler: &MessageHandler,
+  name: &str,
+) -> anyhow::Result<()> {
+  L::login(&mut socket, connection_identifiers, private_key).await?;
+
+  info!("PERIPHERY: Logged into {name}");
+
+  connection.set_connected(true);
+  connection.clear_error().await;
+
+  let (mut ws_write, mut ws_read) = socket.split();
+
+  let forward_writes = async {
+    loop {
+      let next = tokio::select! {
+        next = write_receiver.recv() => next,
+        _ = connection.cancel.cancelled() => break,
+      };
+
+      let message = match next {
+        Some(request) => Bytes::copy_from_slice(request),
+        // Sender Dropped (shouldn't happen, a reference is held on 'connection').
+        None => break,
+      };
+
+      match ws_write.send(message).await {
+        Ok(_) => write_receiver.clear_buffer(),
+        Err(e) => {
+          warn!("Failed to send request to {name} | {e:#}");
+          break;
+        }
+      }
+    }
+    // Cancel again if not already
+    let _ = ws_write.close(None).await;
+    connection.cancel();
+  };
+
+  let handle_reads = async {
+    loop {
+      let next = tokio::select! {
+        next = ws_read.recv() => next,
+        _ = connection.cancel.cancelled() => break,
+      };
+
+      match next {
+        Ok(WebsocketMessage::Binary(bytes)) => {
+          handler.handle_incoming_bytes(bytes).await
+        }
+        Ok(WebsocketMessage::Close(frame)) => {
+          warn!("Connection to {name} broken with frame: {frame:?}");
+          break;
+        }
+        Ok(WebsocketMessage::Closed) => {}
+        Err(e) => {
+          warn!("Connection to {name} broken with error: {e:?}");
+          break;
+        }
+      };
+    }
+    // Cancel again if not already
+    connection.cancel();
+  };
+
+  tokio::join!(forward_writes, handle_reads);
+
+  warn!("PERIPHERY: Disconnnected from {name}");
+  connection.set_connected(false);
+
+  Ok(())
+}
 
 pub struct MessageHandler {
   channels: Arc<CloneCache<Uuid, Sender<Bytes>>>,

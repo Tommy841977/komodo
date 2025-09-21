@@ -20,8 +20,11 @@ pub enum WebsocketMessage<CloseFrame> {
 
 /// Standard traits for websocket
 pub trait Websocket {
-  type CloseFrame: std::fmt::Debug;
+  type CloseFrame: std::fmt::Debug + Send + Sync + 'static;
   type Error: std::error::Error + Send + Sync + 'static;
+
+  /// Abstraction over websocket splitting
+  fn split(self) -> (impl WebsocketSender, impl WebsocketReceiver);
 
   /// Looping receiver for websocket messages which only returns
   /// on significant messages.
@@ -64,7 +67,7 @@ pub trait Websocket {
 
 /// Traits for split websocket receiver
 pub trait WebsocketReceiver {
-  type CloseFrame: std::fmt::Debug;
+  type CloseFrame: std::fmt::Debug + Send + Sync + 'static;
   type Error: std::error::Error + Send + Sync + 'static;
 
   /// Looping receiver for websocket messages which only returns
@@ -73,23 +76,24 @@ pub trait WebsocketReceiver {
     &mut self,
   ) -> impl Future<
     Output = Result<WebsocketMessage<Self::CloseFrame>, Self::Error>,
-  >;
+  > + Send
+  + Sync;
 }
 
 /// Traits for split websocket receiver
 pub trait WebsocketSender {
-  type CloseFrame: std::fmt::Debug;
+  type CloseFrame: std::fmt::Debug + Send + Sync + 'static;
   type Error: std::error::Error + Send + Sync + 'static;
 
   /// Streamlined sending on bytes
   fn send(
     &mut self,
     bytes: Bytes,
-  ) -> impl Future<Output = Result<(), Self::Error>>;
+  ) -> impl Future<Output = Result<(), Self::Error>> + Send + Sync;
 
   /// Send close message
   fn close(
     &mut self,
     frame: Option<Self::CloseFrame>,
-  ) -> impl Future<Output = Result<(), Self::Error>>;
+  ) -> impl Future<Output = Result<(), Self::Error>> + Send + Sync;
 }

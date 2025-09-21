@@ -14,6 +14,11 @@ impl Websocket for AxumWebsocket {
   type CloseFrame = CloseFrame;
   type Error = axum::Error;
 
+  fn split(self) -> (impl WebsocketSender, impl WebsocketReceiver) {
+    let (tx, rx) = self.0.split();
+    (AxumWebsocketSender(tx), AxumWebsocketReceiver(rx))
+  }
+
   async fn recv(
     &mut self,
   ) -> Result<WebsocketMessage<Self::CloseFrame>, Self::Error> {
@@ -32,13 +37,6 @@ impl Websocket for AxumWebsocket {
     frame: Option<Self::CloseFrame>,
   ) -> Result<(), Self::Error> {
     self.0.send(axum::extract::ws::Message::Close(frame)).await
-  }
-}
-
-impl AxumWebsocket {
-  pub fn split(self) -> (AxumWebsocketSender, AxumWebsocketReceiver) {
-    let (tx, rx) = self.0.split();
-    (AxumWebsocketSender(tx), AxumWebsocketReceiver(rx))
   }
 }
 

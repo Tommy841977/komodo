@@ -2,18 +2,14 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::http::HeaderValue;
-use bytes::Bytes;
 use komodo_client::entities::server::Server;
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
 use transport::{
-  auth::{ConnectionIdentifiers, handle_client_side_login},
+  auth::{ClientLoginFlow, ConnectionIdentifiers},
   fix_ws_address,
-  websocket::{
-    WebsocketMessage, WebsocketReceiver as _, WebsocketSender as _,
-    tungstenite::TungsteniteWebsocket,
-  },
+  websocket::tungstenite::TungsteniteWebsocket,
 };
 
 use crate::{
@@ -56,28 +52,32 @@ pub async fn manage_client_connections(servers: &[Server]) {
       fix_ws_address(address)
     };
     match (
-      periphery_connections.get(server_id).await,
       address.is_empty(),
+      periphery_connections.get(server_id).await,
     ) {
-      (Some(existing), true) if existing.address.is_none() => {
+      // Periphery -> Core connections
+      (true, Some(existing)) if existing.address.is_none() => {
         continue;
       }
-      (Some(existing), true) => {
+      (true, Some(existing)) => {
         existing.cancel();
         continue;
       }
-      (Some(existing), false)
+      (true, None) => continue,
+      // Core -> Periphery connections
+      (false, Some(existing))
         if existing
           .address
           .as_ref()
           .map(|a| a == &address)
           .unwrap_or_default() =>
       {
+        // Connection OK
         continue;
       }
-      (Some(_), false) => {}
-      (None, false) => continue,
-      (None, true) => {}
+      // Recreate connection cases
+      (false, Some(_)) => {}
+      (false, None) => {}
     };
     // If reaches here, recreate the connection.
     if let Err(e) =
@@ -116,28 +116,29 @@ async fn spawn_client_connection(
 
   tokio::spawn(async move {
     loop {
-      let (mut socket, accept) =
-        match connect_websocket(&address).await {
-          Ok(res) => res,
-          Err(e) => {
-            connection.set_error(e).await;
-            tokio::time::sleep(Duration::from_secs(5)).await;
-            continue;
-          }
-        };
+      let (socket, accept) = match connect_websocket(&address).await {
+        Ok(res) => res,
+        Err(e) => {
+          connection.set_error(e).await;
+          tokio::time::sleep(Duration::from_secs(5)).await;
+          continue;
+        }
+      };
 
       info!("PERIPHERY: Connected to {address}");
 
-      let id = ConnectionIdentifiers {
-        host: &host,
-        accept: accept.as_bytes(),
-        query: &[],
-      };
-
-      if let Err(e) = handle_client_side_login(
-        &mut socket,
-        id,
-        b"RANDOM_PRIVATE_KEY",
+      if let Err(e) = super::handle_websocket::<ClientLoginFlow>(
+        socket,
+        ConnectionIdentifiers {
+          host: &host,
+          accept: accept.as_bytes(),
+          query: &[],
+        },
+        b"TEST",
+        &mut write_receiver,
+        &connection,
+        &handler,
+        &address,
       )
       .await
       {
@@ -145,76 +146,6 @@ async fn spawn_client_connection(
         tokio::time::sleep(Duration::from_secs(5)).await;
         continue;
       };
-
-      info!("PERIPHERY: Logged into {address}");
-
-      connection.set_connected(true);
-      connection.clear_error().await;
-
-      let (mut ws_write, mut ws_read) = socket.split();
-
-      let forward_writes = async {
-        loop {
-          let next = tokio::select! {
-            next = write_receiver.recv() => next,
-            _ = connection.cancel.cancelled() => break,
-          };
-
-          let message = match next {
-            None => {
-              info!("Got None over request reciever for {address}");
-              break;
-            }
-            Some(request) => Bytes::copy_from_slice(request),
-          };
-
-          match ws_write.send(message).await {
-            Ok(_) => write_receiver.clear_buffer(),
-            Err(e) => {
-              warn!("Failed to send request to {address} | {e:#}");
-              break;
-            }
-          }
-        }
-        // Cancel again if not already
-        let _ = ws_write.close(None).await;
-        connection.cancel();
-      };
-
-      let handle_reads = async {
-        loop {
-          let next = tokio::select! {
-            next = ws_read.recv() => next,
-            _ = connection.cancel.cancelled() => break,
-          };
-
-          match next {
-            Ok(WebsocketMessage::Binary(bytes)) => {
-              handler.handle_incoming_bytes(bytes).await
-            }
-            Ok(WebsocketMessage::Close(frame)) => {
-              warn!(
-                "Connection to {address} broken with frame: {frame:?}"
-              );
-              break;
-            }
-            Ok(WebsocketMessage::Closed) => {}
-            Err(e) => {
-              warn!(
-                "Connection to {address} broken with error: {e:?}"
-              );
-              break;
-            }
-          };
-        }
-        // Cancel again if not already
-        connection.cancel();
-      };
-
-      tokio::join!(forward_writes, handle_reads);
-
-      warn!("PERIPHERY: Disconnnected from {address}");
-      connection.set_connected(false);
     }
   });
 
