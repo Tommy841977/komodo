@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
   PeripheryClient, all_server_channels, api::terminal::*,
-  connection::periphery_connections,
+  periphery_connections,
 };
 
 impl PeripheryClient {

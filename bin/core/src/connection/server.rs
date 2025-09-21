@@ -1,34 +1,40 @@
 use anyhow::Context;
 use axum::{
-  extract::WebSocketUpgrade,
+  extract::{Query, WebSocketUpgrade},
   http::{HeaderMap, StatusCode},
   response::Response,
 };
 use komodo_client::entities::server::Server;
+use periphery_client::periphery_connections;
 use serror::AddStatusCode;
 use tracing::warn;
 use transport::{
+  PeripheryConnectionQuery,
   auth::{ServerHeaderIdentifiers, ServerLoginFlow},
   websocket::axum::AxumWebsocket,
 };
 
-use crate::connection::{
-  MessageHandler, PeripheryConnection, periphery_connections,
+use crate::{
+  config::core_config,
+  connection::{MessageHandler, PeripheryConnection},
 };
 
 pub async fn handler(
-  server: Server,
-  default_private_key: String,
-  default_public_key: Option<String>,
+  Query(PeripheryConnectionQuery { server: _server }): Query<
+    PeripheryConnectionQuery,
+  >,
   mut headers: HeaderMap,
-  query: String,
   ws: WebSocketUpgrade,
 ) -> serror::Result<Response> {
   let identifiers = ServerHeaderIdentifiers::extract(&mut headers)
     .status_code(StatusCode::UNAUTHORIZED)?;
 
+  let server = crate::resource::get::<Server>(&_server)
+    .await
+    .status_code(StatusCode::BAD_REQUEST)?;
+
   let expected_public_key = if server.config.public_key.is_empty() {
-    default_public_key.context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
+    core_config().periphery_public_key.clone().context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
   } else {
     server.config.public_key
   };
@@ -46,12 +52,13 @@ pub async fn handler(
   }
 
   Ok(ws.on_upgrade(|socket| async move {
+    let query = format!("server={}", urlencoding::encode(&_server));
     let handler = super::WebsocketHandler {
       label: &server.id,
       socket: AxumWebsocket(socket),
       connection_identifiers: identifiers.build(query.as_bytes()),
       private_key: if server.config.private_key.is_empty() {
-        &default_private_key
+        &core_config().private_key
       } else {
         &server.config.private_key
       },

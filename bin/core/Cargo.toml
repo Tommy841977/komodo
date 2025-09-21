@@ -40,6 +40,7 @@ slack.workspace = true
 svi.workspace = true
 # external
 aws-credential-types.workspace = true
+tokio-tungstenite.workspace = true
 english-to-cron.workspace = true
 openidconnect.workspace = true
 jsonwebtoken.workspace = true
@@ -83,3 +84,4 @@ rand.workspace = true
 hmac.workspace = true
 sha2.workspace = true
 hex.workspace = true
+url.workspace = true

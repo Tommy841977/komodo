@@ -34,6 +34,7 @@ use periphery_client::{
 use resolver_api::Resolve;
 use tokio::fs;
 
+use crate::connection::client::spawn_client_connection;
 use crate::{
   config::core_config,
   helpers::{
@@ -438,12 +439,15 @@ async fn get_on_host_periphery(
         PeripheryClient::new_with_spawned_client_connection(
           ObjectId::new().to_hex(),
           &config.address,
-          if config.private_key.is_empty() {
-            core_config().private_key.clone()
-          } else {
-            config.private_key
+          |server_id, address| async move {
+            spawn_client_connection(
+              server_id,
+              address,
+              config.private_key,
+              optional_string(config.public_key),
+            )
+            .await
           },
-          optional_string(config.public_key),
         )
         .await?;
       // Poll for connection to be estalished

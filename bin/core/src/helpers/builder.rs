@@ -23,7 +23,7 @@ use crate::{
       terminate_ec2_instance_with_retry,
     },
   },
-  config::core_config,
+  connection::client::spawn_client_connection,
   helpers::update::update_update,
   resource,
 };
@@ -54,12 +54,15 @@ pub async fn get_builder_periphery(
         PeripheryClient::new_with_spawned_client_connection(
           ObjectId::new().to_hex(),
           &config.address,
-          if config.private_key.is_empty() {
-            core_config().private_key.clone()
-          } else {
-            config.private_key
+          |server_id, address| async move {
+            spawn_client_connection(
+              server_id,
+              address,
+              config.private_key,
+              optional_string(config.public_key),
+            )
+            .await
           },
-          optional_string(config.public_key),
         )
         .await?;
       periphery
@@ -120,12 +123,15 @@ async fn get_aws_builder(
     PeripheryClient::new_with_spawned_client_connection(
       ObjectId::new().to_hex(),
       &periphery_address,
-      if config.private_key.is_empty() {
-        core_config().private_key.clone()
-      } else {
-        config.private_key
+      |server_id, address| async move {
+        spawn_client_connection(
+          server_id,
+          address,
+          config.private_key,
+          optional_string(config.public_key),
+        )
+        .await
       },
-      optional_string(config.public_key),
     )
     .await?;
 

@@ -28,7 +28,6 @@ use uuid::Uuid;
 
 mod container;
 mod deployment;
-mod periphery;
 mod stack;
 mod terminal;
 mod update;
@@ -36,7 +35,7 @@ mod update;
 pub fn router() -> Router {
   Router::new()
     // Periphery facing
-    .route("/periphery", get(periphery::handler))
+    .route("/periphery", get(crate::connection::server::handler))
     // User facing
     .route("/update", get(update::handler))
     .route("/terminal", get(terminal::handler))

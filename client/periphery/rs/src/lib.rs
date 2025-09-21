@@ -1,5 +1,8 @@
 use std::{
-  sync::{Arc, OnceLock},
+  sync::{
+    Arc, OnceLock,
+    atomic::{self, AtomicBool},
+  },
   time::Duration,
 };
 
@@ -10,17 +13,21 @@ use resolver_api::HasResponse;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 use serror::{deserialize_error_bytes, serror_into_anyhow_error};
-use tokio::sync::mpsc::{self, Sender};
-use tracing::warn;
+use tokio::sync::{
+  RwLock,
+  mpsc::{self, Sender, error::SendError},
+};
+use tokio_util::sync::CancellationToken;
+use tracing::{info, warn};
 use transport::{
   MessageState,
   bytes::{from_transport_bytes, to_transport_bytes},
+  channel::{BufferedReceiver, buffered_channel},
   fix_ws_address,
 };
 use uuid::Uuid;
 
 pub mod api;
-pub mod connection;
 pub mod terminal;
 
 pub type ServerChannels = CloneCache<Uuid, Sender<Bytes>>;
@@ -47,23 +54,19 @@ impl PeripheryClient {
     }
   }
 
-  pub async fn new_with_spawned_client_connection(
+  pub async fn new_with_spawned_client_connection<
+    F: Future<Output = anyhow::Result<()>>,
+  >(
     server_id: String,
     address: &str,
-    private_key: String,
-    expected_public_key: Option<String>,
+    // (Server id, address)
+    spawn: impl FnOnce(String, String) -> F,
   ) -> anyhow::Result<PeripheryClient> {
     if address.is_empty() {
       return Err(anyhow!("Server address cannot be empty"));
     }
     let periphery = PeripheryClient::new(server_id.clone()).await;
-    connection::client::spawn_client_connection(
-      server_id,
-      fix_ws_address(address),
-      private_key,
-      expected_public_key,
-    )
-    .await?;
+    spawn(server_id, fix_ws_address(address)).await?;
     Ok(periphery)
   }
 
@@ -86,7 +89,7 @@ impl PeripheryClient {
     T: std::fmt::Debug + Serialize + HasResponse,
     T::Response: DeserializeOwned,
   {
-    let connection = connection::periphery_connections()
+    let connection = periphery_connections()
       .get(&self.server_id)
       .await
       .with_context(|| {
@@ -181,5 +184,79 @@ impl PeripheryClient {
         }
       }
     }
+  }
+}
+
+/// server id => connection
+pub type PeripheryConnections =
+  CloneCache<String, Arc<PeripheryConnection>>;
+
+pub fn periphery_connections() -> &'static PeripheryConnections {
+  static CONNECTIONS: OnceLock<PeripheryConnections> =
+    OnceLock::new();
+  CONNECTIONS.get_or_init(Default::default)
+}
+
+#[derive(Debug)]
+pub struct PeripheryConnection {
+  // Inbound connections have this as None
+  pub address: Option<String>,
+  pub write_sender: Sender<Bytes>,
+  pub connected: AtomicBool,
+  pub error: RwLock<Option<serror::Serror>>,
+  pub cancel: CancellationToken,
+}
+
+impl PeripheryConnection {
+  pub fn new(
+    address: Option<String>,
+  ) -> (Arc<PeripheryConnection>, BufferedReceiver<Bytes>) {
+    let (write_sender, write_receiver) = buffered_channel(1000);
+    (
+      PeripheryConnection {
+        address,
+        write_sender,
+        connected: AtomicBool::new(false),
+        error: RwLock::new(None),
+        cancel: CancellationToken::new(),
+      }
+      .into(),
+      write_receiver,
+    )
+  }
+
+  pub async fn send(
+    &self,
+    value: Bytes,
+  ) -> Result<(), SendError<Bytes>> {
+    self.write_sender.send(value).await
+  }
+
+  pub fn set_connected(&self, connected: bool) {
+    self.connected.store(connected, atomic::Ordering::Relaxed);
+  }
+
+  pub fn connected(&self) -> bool {
+    self.connected.load(atomic::Ordering::Relaxed)
+  }
+
+  pub async fn error(&self) -> Option<serror::Serror> {
+    self.error.read().await.clone()
+  }
+
+  pub async fn set_error(&self, e: anyhow::Error) {
+    let mut error = self.error.write().await;
+    *error = Some(e.into());
+  }
+
+  pub async fn clear_error(&self) {
+    let mut error = self.error.write().await;
+    *error = None;
+  }
+
+  pub fn cancel(&self) {
+    // TODO: remove logs
+    info!("Cancelling connection");
+    self.cancel.cancel();
   }
 }

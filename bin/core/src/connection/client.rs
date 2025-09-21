@@ -1,8 +1,14 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use crate::{
+  all_server_channels,
+  config::core_config,
+  connection::{MessageHandler, PeripheryConnection},
+};
 use anyhow::Context;
 use axum::http::HeaderValue;
 use komodo_client::entities::{optional_string, server::Server};
+use periphery_client::periphery_connections;
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
@@ -12,18 +18,8 @@ use transport::{
   websocket::tungstenite::TungsteniteWebsocket,
 };
 
-use crate::{
-  all_server_channels,
-  connection::{
-    MessageHandler, PeripheryConnection, periphery_connections,
-  },
-};
-
 /// Managed connections to exactly those specified by specs (ServerId -> Address)
-pub async fn manage_client_connections(
-  servers: &[Server],
-  default_private_key: &'static str,
-) {
+pub async fn manage_client_connections(servers: &[Server]) {
   let periphery_connections = periphery_connections();
   let periphery_channels = all_server_channels();
 
@@ -97,11 +93,7 @@ pub async fn manage_client_connections(
     if let Err(e) = spawn_client_connection(
       server_id.clone(),
       address,
-      if private_key.is_empty() {
-        default_private_key.to_string()
-      } else {
-        private_key.clone()
-      },
+      private_key.clone(),
       optional_string(expected_public_key),
     )
     .await
@@ -138,6 +130,15 @@ pub async fn spawn_client_connection(
   {
     existing_connection.cancel();
   }
+
+  let config = core_config();
+  let private_key = if private_key.is_empty() {
+    config.private_key.clone()
+  } else {
+    private_key
+  };
+  let expected_public_key = expected_public_key
+    .or_else(|| config.periphery_public_key.clone());
 
   tokio::spawn(async move {
     loop {
