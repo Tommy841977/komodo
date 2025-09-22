@@ -34,8 +34,8 @@ pub async fn handler(
   let url =
     Url::parse(&core_endpoint).context("Failed to parse ws url")?;
   let host: Vec<u8> =
-    url.host().context("url has no host")?.to_string().into();
-  let query = url.query().context("url has no query")?.as_bytes();
+    url.host().context("Url has no host")?.to_string().into();
+  let query = url.query().context("Url has no query")?.as_bytes();
 
   info!("Initiating outbound connection to {url}");
 
