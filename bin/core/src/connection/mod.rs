@@ -131,7 +131,7 @@ impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
       && public_key != expected
     {
       Err(
-        anyhow!("Invalid public key '{public_key}'")
+        anyhow!("Got invalid public key: {public_key}")
           .context("Ensure public key matches configured Periphery Public Key")
           .context("Core failed to validate Periphery public key"),
       )
