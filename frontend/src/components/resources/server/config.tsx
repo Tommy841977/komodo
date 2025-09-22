@@ -83,18 +83,18 @@ export const ServerConfig = ({
             components: {
               address: {
                 description:
-                  "The http/s address of periphery in your network for Core -> Periphery connnection.",
-                placeholder: "https://12.34.56.78:8120",
+                  "For Core -> Periphery connnection mode, specify address of periphery in your network.",
+                placeholder: "12.34.56.78:8120",
               },
               external_address: {
                 description:
                   "Optional. The address of the server used in container links, if different than the Address.",
-                placeholder: "https://my.server.int",
+                placeholder: "my.server.int",
               },
               region: {
-                placeholder: "Region. Optional.",
                 description:
-                  "Attach a region to the server for visual grouping.",
+                  "Optional. Attach a region to the server for visual grouping.",
+                placeholder: "Configure Region",
               },
             },
           },
