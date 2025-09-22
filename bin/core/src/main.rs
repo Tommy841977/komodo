@@ -8,7 +8,6 @@ use std::{net::SocketAddr, str::FromStr};
 use anyhow::Context;
 use axum::Router;
 use axum_server::{Handle, tls_rustls::RustlsConfig};
-use periphery_client::all_server_channels;
 use tower_http::{
   cors::{Any, CorsLayer},
   services::{ServeDir, ServeFile},
@@ -26,6 +25,7 @@ mod helpers;
 mod listener;
 mod monitor;
 mod network;
+mod periphery;
 mod permission;
 mod resource;
 mod schedule;

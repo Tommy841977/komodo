@@ -5,7 +5,6 @@ use axum::{
   response::Response,
 };
 use komodo_client::entities::server::Server;
-use periphery_client::periphery_connections;
 use serror::{AddStatusCode, AddStatusCodeError};
 use transport::{
   PeripheryConnectionQuery,
@@ -16,6 +15,7 @@ use transport::{
 use crate::{
   config::core_config,
   connection::{MessageHandler, PeripheryConnection},
+  state::periphery_connections,
 };
 
 pub async fn handler(
@@ -49,13 +49,12 @@ pub async fn handler(
   // Ensure connected server can't get bumped off the connection.
   // Treat this as authorization issue.
   if let Some(existing_connection) = connections.get(&server.id).await
+    && existing_connection.connected()
   {
-    if existing_connection.connected() {
-      return Err(
-        anyhow!("A Server '{_server}' is already connected")
-          .status_code(StatusCode::UNAUTHORIZED),
-      );
-    }
+    return Err(
+      anyhow!("A Server '{_server}' is already connected")
+        .status_code(StatusCode::UNAUTHORIZED),
+    );
   }
 
   let expected_public_key = if server.config.public_key.is_empty() {

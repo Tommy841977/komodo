@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::Context;
 use arc_swap::ArcSwap;
+use bytes::Bytes;
 use cache::CloneCache;
 use database::Client;
 use komodo_client::entities::{
@@ -19,6 +20,8 @@ use komodo_client::entities::{
 use octorust::auth::{
   Credentials, InstallationTokenGenerator, JWTCredentials,
 };
+use tokio::sync::mpsc::Sender;
+use uuid::Uuid;
 
 use crate::{
   auth::jwt::JwtClient,
@@ -29,7 +32,7 @@ use crate::{
   monitor::{
     CachedDeploymentStatus, CachedRepoStatus, CachedServerStatus,
     CachedStackStatus, History,
-  },
+  }, periphery::PeripheryConnection,
 };
 
 static DB_CLIENT: OnceLock<Client> = OnceLock::new();
@@ -46,7 +49,9 @@ pub async fn init_db_client() {
     .await
     .context("failed to initialize database client")
     .unwrap();
-  DB_CLIENT.set(client).expect("db_client initialized more than once");
+  DB_CLIENT
+    .set(client)
+    .expect("db_client initialized more than once");
 }
 
 pub fn jwt_client() -> &'static JwtClient {
@@ -209,4 +214,23 @@ pub fn all_resources_cache() -> &'static ArcSwap<AllResourcesById> {
   static ALL_RESOURCES: OnceLock<ArcSwap<AllResourcesById>> =
     OnceLock::new();
   ALL_RESOURCES.get_or_init(Default::default)
+}
+
+pub type ServerChannels = CloneCache<Uuid, Sender<Bytes>>;
+// Server id => ServerChannel
+pub type AllServerChannels = CloneCache<String, Arc<ServerChannels>>;
+
+pub fn all_server_channels() -> &'static AllServerChannels {
+  static CHANNELS: OnceLock<AllServerChannels> = OnceLock::new();
+  CHANNELS.get_or_init(Default::default)
+}
+
+/// server id => connection
+pub type PeripheryConnections =
+  CloneCache<String, Arc<PeripheryConnection>>;
+
+pub fn periphery_connections() -> &'static PeripheryConnections {
+  static CONNECTIONS: OnceLock<PeripheryConnections> =
+    OnceLock::new();
+  CONNECTIONS.get_or_init(Default::default)
 }

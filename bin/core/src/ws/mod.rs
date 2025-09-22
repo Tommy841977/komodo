@@ -1,6 +1,8 @@
 use crate::{
   auth::{auth_api_key_check_enabled, auth_jwt_check_enabled},
   helpers::query::get_user,
+  periphery::PeripheryClient,
+  state::all_server_channels,
 };
 use anyhow::anyhow;
 use axum::{
@@ -14,10 +16,7 @@ use komodo_client::{
   entities::{server::Server, user::User},
   ws::WsLoginMessage,
 };
-use periphery_client::{
-  PeripheryClient, all_server_channels,
-  api::terminal::DisconnectTerminal,
-};
+use periphery_client::api::terminal::DisconnectTerminal;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_util::sync::CancellationToken;
 use transport::{

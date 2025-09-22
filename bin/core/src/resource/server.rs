@@ -12,13 +12,15 @@ use komodo_client::entities::{
   update::Update,
   user::User,
 };
-use periphery_client::all_server_channels;
 
 use crate::{
   config::core_config,
   helpers::query::get_system_info,
   monitor::update_cache_for_server,
-  state::{action_states, db_client, server_status_cache},
+  state::{
+    action_states, all_server_channels, db_client,
+    server_status_cache,
+  },
 };
 
 impl super::KomodoResource for Server {

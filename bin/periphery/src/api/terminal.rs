@@ -8,10 +8,7 @@ use komodo_client::{
   api::write::TerminalRecreateMode,
   entities::{KOMODO_EXIT_CODE, NoData, server::TerminalInfo},
 };
-use periphery_client::{
-  api::terminal::*,
-  terminal::{END_OF_OUTPUT, START_OF_OUTPUT},
-};
+use periphery_client::api::terminal::*;
 use resolver_api::Resolve;
 use serror::AddStatusCodeError;
 use tokio_util::{codec::LinesCodecError, sync::CancellationToken};

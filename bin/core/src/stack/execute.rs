@@ -7,11 +7,12 @@ use komodo_client::{
     user::User,
   },
 };
-use periphery_client::{PeripheryClient, api::compose::*};
+use periphery_client::api::compose::*;
 
 use crate::{
   helpers::{periphery_client, update::update_update},
   monitor::update_cache_for_server,
+  periphery::PeripheryClient,
   state::action_states,
 };
 

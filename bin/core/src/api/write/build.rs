@@ -25,16 +25,14 @@ use komodo_client::{
 use octorust::types::{
   ReposCreateWebhookRequest, ReposCreateWebhookRequestConfig,
 };
-use periphery_client::{
-  PeripheryClient,
-  api::build::{
-    GetDockerfileContentsOnHost, WriteDockerfileContentsToHost,
-  },
+use periphery_client::api::build::{
+  GetDockerfileContentsOnHost, WriteDockerfileContentsToHost,
 };
 use resolver_api::Resolve;
 use tokio::fs;
 
 use crate::connection::client::spawn_client_connection;
+use crate::periphery::PeripheryClient;
 use crate::{
   config::core_config,
   helpers::{

@@ -1,16 +1,9 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use crate::{
-  all_server_channels,
-  config::core_config,
-  connection::{MessageHandler, PeripheryConnection},
-};
 use anyhow::Context;
 use axum::http::HeaderValue;
 use komodo_client::entities::{optional_string, server::Server};
-use periphery_client::{
-  CONNECTION_RETRY_SECONDS, periphery_connections,
-};
+use periphery_client::CONNECTION_RETRY_SECONDS;
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
@@ -18,6 +11,13 @@ use transport::{
   auth::{ClientLoginFlow, ConnectionIdentifiers},
   fix_ws_address,
   websocket::tungstenite::TungsteniteWebsocket,
+};
+
+use crate::{
+  config::core_config,
+  connection::MessageHandler,
+  periphery::PeripheryConnection,
+  state::{all_server_channels, periphery_connections},
 };
 
 /// Managed connections to exactly those specified by specs (ServerId -> Address)

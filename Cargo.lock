@@ -3793,19 +3793,10 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "periphery_client"
 version = "2.0.0-dev-5"
 dependencies = [
- "anyhow",
- "bytes",
- "cache",
- "futures-util",
  "komodo_client",
  "resolver_api",
  "serde",
- "serde_json",
  "serror",
- "tokio",
- "tokio-util",
- "tracing",
- "transport",
  "uuid",
 ]
 

@@ -15,10 +15,11 @@ use komodo_client::entities::{
   stack::Stack,
   user::User,
 };
-use periphery_client::PeripheryClient;
 use rand::Rng;
 
-use crate::{config::core_config, state::db_client};
+use crate::{
+  config::core_config, periphery::PeripheryClient, state::db_client,
+};
 
 pub mod action_state;
 pub mod all_resources;

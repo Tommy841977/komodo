@@ -6,6 +6,10 @@ use resolver_api::Resolve;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Execute Sentinels
+pub const START_OF_OUTPUT: &str = "__KOMODO_START_OF_OUTPUT__";
+pub const END_OF_OUTPUT: &str = "__KOMODO_END_OF_OUTPUT__";
+
 #[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
 #[response(Vec<TerminalInfo>)]
 #[error(serror::Error)]

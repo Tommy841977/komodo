@@ -7,14 +7,18 @@ use std::{
 use anyhow::Context;
 use bytes::Bytes;
 use cache::CloneCache;
-use futures_util::Stream;
+use futures::Stream;
+use periphery_client::api::terminal::{
+  ConnectContainerExec, ConnectTerminal, END_OF_OUTPUT,
+  ExecuteContainerExec, ExecuteTerminal,
+};
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use transport::bytes::data_from_transport_bytes;
 use uuid::Uuid;
 
 use crate::{
-  PeripheryClient, all_server_channels, api::terminal::*,
-  periphery_connections,
+  periphery::PeripheryClient,
+  state::{all_server_channels, periphery_connections},
 };
 
 impl PeripheryClient {
@@ -170,10 +174,6 @@ impl PeripheryClient {
     })
   }
 }
-
-/// Execute Sentinels
-pub const START_OF_OUTPUT: &str = "__KOMODO_START_OF_OUTPUT__";
-pub const END_OF_OUTPUT: &str = "__KOMODO_END_OF_OUTPUT__";
 
 pub struct ReceiverStream {
   id: Uuid,

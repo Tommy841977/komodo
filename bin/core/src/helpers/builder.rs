@@ -10,22 +10,14 @@ use komodo_client::entities::{
   server::Server,
   update::{Log, Update},
 };
-use periphery_client::{
-  PeripheryClient,
-  api::{self, GetVersionResponse},
-};
+use periphery_client::api::{self, GetVersionResponse};
 
 use crate::{
   cloud::{
-    BuildCleanupData,
     aws::ec2::{
-      Ec2Instance, launch_ec2_instance,
-      terminate_ec2_instance_with_retry,
-    },
-  },
-  connection::client::spawn_client_connection,
-  helpers::update::update_update,
-  resource,
+      launch_ec2_instance, terminate_ec2_instance_with_retry, Ec2Instance
+    }, BuildCleanupData
+  }, connection::client::spawn_client_connection, helpers::update::update_update, periphery::PeripheryClient, resource
 };
 
 use super::periphery_client;

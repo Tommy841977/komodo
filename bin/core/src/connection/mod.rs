@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use bytes::Bytes;
 use cache::CloneCache;
-use periphery_client::{PeripheryConnection, all_server_channels};
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -17,6 +16,10 @@ use transport::{
   },
 };
 use uuid::Uuid;
+
+use crate::{
+  periphery::PeripheryConnection, state::all_server_channels,
+};
 
 pub mod client;
 pub mod server;
