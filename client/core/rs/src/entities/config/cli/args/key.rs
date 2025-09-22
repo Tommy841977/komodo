@@ -1,10 +1,16 @@
+use serde::Serialize;
+
 #[derive(Debug, Clone, clap::Subcommand)]
 pub enum KeyCommand {
   /// Generate a new public / private key pair
   /// for use with Core - Periphery authentication.
   /// (aliases: `gen`, `g`)
   #[clap(alias = "gen", alias = "g")]
-  Generate,
+  Generate {
+    /// Specify the format of the output.
+    #[arg(long, short = 'f', default_value_t = KeyOutputFormat::Standard)]
+    format: KeyOutputFormat,
+  },
 
   /// Compute the public key for a given private key.
   /// (aliases: `comp`, `c`)
@@ -12,5 +18,28 @@ pub enum KeyCommand {
   Compute {
     /// Pass the private key
     private_key: String,
+    /// Specify the format of the output.
+    #[arg(long, short = 'f', default_value_t = KeyOutputFormat::Standard)]
+    format: KeyOutputFormat,
   },
+}
+
+#[derive(
+  Debug, Clone, Copy, Default, strum::Display, clap::ValueEnum,
+)]
+#[strum(serialize_all = "lowercase")]
+pub enum KeyOutputFormat {
+  /// Readable output format. Default. (alias: `t`)
+  #[default]
+  #[clap(alias = "s")]
+  Standard,
+  /// Json output format. (alias: `j`)
+  #[clap(alias = "j")]
+  Json,
+}
+
+#[derive(Serialize)]
+pub struct KeyPair<'a> {
+  pub private_key: &'a str,
+  pub public_key: &'a str,
 }
