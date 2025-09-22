@@ -98,6 +98,7 @@ async fn connect_websocket(
   let accept = response
     .headers_mut()
     .remove("sec-websocket-accept")
-    .context("sec-websocket-accept")?;
+    .context("sec-websocket-accept")
+    .context("Headers do not contain Sec-Websocket-Accept")?;
   Ok((TungsteniteWebsocket(ws), accept))
 }

@@ -32,6 +32,18 @@ pub async fn handler(
     .await
     .status_code(StatusCode::BAD_REQUEST)?;
 
+  if !server.config.enabled {
+    return Err(anyhow!("Server is Disabled."))
+      .status_code(StatusCode::BAD_REQUEST);
+  }
+
+  if !server.config.address.is_empty() {
+    return Err(anyhow!(
+      "Server is configured to use a Core -> Periphery connection."
+    ))
+    .status_code(StatusCode::BAD_REQUEST);
+  }
+
   let connections = periphery_connections();
 
   // Ensure connected server can't get bumped off the connection.
@@ -68,7 +80,6 @@ pub async fn handler(
   Ok(ws.on_upgrade(|socket| async move {
     let query = format!("server={}", urlencoding::encode(&_server));
     let handler = super::WebsocketHandler {
-      label: &server.name,
       socket: AxumWebsocket(socket),
       connection_identifiers: identifiers.build(query.as_bytes()),
       private_key: if server.config.private_key.is_empty() {

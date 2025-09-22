@@ -5,7 +5,8 @@ use bytes::Bytes;
 use cache::CloneCache;
 use periphery_client::{PeripheryConnection, all_server_channels};
 use tokio::sync::mpsc::Sender;
-use tracing::{info, warn};
+use tokio_util::sync::CancellationToken;
+use tracing::warn;
 use transport::{
   auth::{ConnectionIdentifiers, LoginFlow, PublicKeyValidator},
   bytes::id_from_transport_bytes,
@@ -21,7 +22,6 @@ pub mod client;
 pub mod server;
 
 pub struct WebsocketHandler<'a, W> {
-  pub label: &'a str,
   pub socket: W,
   pub connection_identifiers: ConnectionIdentifiers<'a>,
   pub private_key: &'a str,
@@ -34,7 +34,6 @@ pub struct WebsocketHandler<'a, W> {
 impl<W: Websocket> WebsocketHandler<'_, W> {
   async fn handle<L: LoginFlow>(self) -> anyhow::Result<()> {
     let WebsocketHandler {
-      label,
       mut socket,
       connection_identifiers,
       private_key,
@@ -54,7 +53,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
     )
     .await?;
 
-    info!("PERIPHERY: Authenticated connection to {label} established");
+    let handler_cancel = CancellationToken::new();
 
     connection.set_connected(true);
     connection.clear_error().await;
@@ -66,6 +65,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
         let next = tokio::select! {
           next = write_receiver.recv() => next,
           _ = connection.cancel.cancelled() => break,
+          _ = handler_cancel.cancelled() => break,
         };
 
         let message = match next {
@@ -77,14 +77,14 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
         match ws_write.send(message).await {
           Ok(_) => write_receiver.clear_buffer(),
           Err(e) => {
-            warn!("Failed to send request to {label} | {e:#}");
+            connection.set_error(e.into()).await;
             break;
           }
         }
       }
       // Cancel again if not already
       let _ = ws_write.close(None).await;
-      connection.cancel();
+      handler_cancel.cancel();
     };
 
     let handle_reads = async {
@@ -92,32 +92,29 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
         let next = tokio::select! {
           next = ws_read.recv() => next,
           _ = connection.cancel.cancelled() => break,
+          _ = handler_cancel.cancelled() => break,
         };
 
         match next {
           Ok(WebsocketMessage::Binary(bytes)) => {
             handler.handle_incoming_bytes(bytes).await
           }
-          Ok(WebsocketMessage::Close(frame)) => {
-            warn!(
-              "Connection to {label} broken with frame: {frame:?}"
-            );
+          Ok(WebsocketMessage::Close(_))
+          | Ok(WebsocketMessage::Closed) => {
+            connection.set_error(anyhow!("Connection closed")).await;
             break;
           }
-          Ok(WebsocketMessage::Closed) => {}
           Err(e) => {
-            warn!("Connection to {label} broken with error: {e:?}");
-            break;
+            connection.set_error(e.into()).await;
           }
         };
       }
       // Cancel again if not already
-      connection.cancel();
+      handler_cancel.cancel();
     };
 
     tokio::join!(forward_writes, handle_reads);
 
-    warn!("PERIPHERY: Disconnnected from {label}");
     connection.set_connected(false);
 
     Ok(())

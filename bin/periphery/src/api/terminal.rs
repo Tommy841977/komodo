@@ -142,13 +142,10 @@ impl Resolve<super::Args> for ConnectContainerExec {
 impl Resolve<super::Args> for DisconnectTerminal {
   #[instrument(name = "DisconnectTerminal", level = "debug")]
   async fn resolve(self, _: &super::Args) -> serror::Result<NoData> {
-    // TODO: Remove logs
-    info!("Disconnect called for {}", self.id);
     if let Some((_, cancel)) =
       terminal_channels().remove(&self.id).await
     {
       cancel.cancel();
-      info!("Cancel called for {}", self.id);
     }
     Ok(NoData {})
   }

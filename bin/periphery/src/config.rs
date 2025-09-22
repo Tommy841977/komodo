@@ -27,7 +27,7 @@ pub fn periphery_config() -> &'static PeripheryConfig {
     let args = CliArgs::parse();
     let config_paths =
       args.config_path.unwrap_or(env.periphery_config_paths);
-
+    println!("{config_paths:?}");
     let config = if config_paths.is_empty() {
       println!(
         "{}: No config paths found, using default config",

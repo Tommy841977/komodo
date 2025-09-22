@@ -8,7 +8,12 @@ cmd = "KOMODO_CONFIG_PATH=.dev/core.config.toml cargo run -p komodo_core --relea
 [dev-periphery]
 alias = "dp"
 description = "runs periphery --release pointing to .dev/periphery.config.toml"
-cmd = "PERIPHERY_CONFIG_PATH=.dev/periphery.config.toml cargo run -p komodo_periphery --release"
+cmd = "cargo run -p komodo_periphery --release -- -c .dev/periphery.config.toml"
+
+[dev-periphery-outbound]
+alias = "dpo"
+description = "runs periphery --release pointing to .dev/periphery.config.toml and .dev/outbound.periphery.config.toml"
+cmd = "cargo run -p komodo_periphery --release -- -c .dev/periphery.config.toml -c .dev/outbound.periphery.config.toml"
 
 [yarn-install]
 description = "downloads latest javacript dependencies for client and frontend"

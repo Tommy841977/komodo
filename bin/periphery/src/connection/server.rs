@@ -41,7 +41,7 @@ pub async fn run() -> anyhow::Result<()> {
       .install_default()
       .expect("failed to install default rustls CryptoProvider");
     crate::helpers::ensure_ssl_certs().await;
-    info!("Komodo Periphery starting on https://{}", socket_addr);
+    info!("Komodo Periphery starting on wss://{}", socket_addr);
     let ssl_config = RustlsConfig::from_pem_file(
       config.ssl_cert_file(),
       config.ssl_key_file(),
@@ -53,7 +53,7 @@ pub async fn run() -> anyhow::Result<()> {
       .await?
   } else {
     info!("🔓 Periphery SSL Disabled");
-    info!("Komodo Periphery starting on http://{}", socket_addr);
+    info!("Komodo Periphery starting on ws://{}", socket_addr);
     axum_server::bind(socket_addr).serve(app).await?
   }
 

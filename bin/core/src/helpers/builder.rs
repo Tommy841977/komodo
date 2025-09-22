@@ -56,7 +56,6 @@ pub async fn get_builder_periphery(
           &config.address,
           |server_id, address| async move {
             spawn_client_connection(
-              format!("Builder {}", builder.name),
               server_id,
               address,
               config.private_key,
@@ -124,7 +123,6 @@ async fn get_aws_builder(
       &periphery_address,
       |server_id, address| async move {
         spawn_client_connection(
-          instance_name,
           server_id,
           address,
           config.private_key,

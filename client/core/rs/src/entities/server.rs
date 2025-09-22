@@ -64,11 +64,10 @@ pub type _PartialServerConfig = PartialServerConfig;
 #[partial_derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[partial(skip_serializing_none, from, diff)]
 pub struct ServerConfig {
-  /// The http address of the periphery client.
-  /// Default: http://localhost:8120
-  #[serde(default = "default_address")]
-  #[builder(default = "default_address()")]
-  #[partial_default(default_address())]
+  /// The ws/s address of the periphery client.
+  /// If unset, Server expects Periphery -> Core connection.
+  #[serde(default)]
+  #[builder(default)]
   pub address: String,
 
   /// The address to use with links for containers on the server.
@@ -216,10 +215,6 @@ impl ServerConfig {
   }
 }
 
-fn default_address() -> String {
-  String::from("https://periphery:8120")
-}
-
 fn default_enabled() -> bool {
   false
 }
@@ -263,7 +258,7 @@ fn default_disk_critical() -> f64 {
 impl Default for ServerConfig {
   fn default() -> Self {
     Self {
-      address: default_address(),
+      address: Default::default(),
       external_address: Default::default(),
       enabled: default_enabled(),
       ignore_mounts: Default::default(),
