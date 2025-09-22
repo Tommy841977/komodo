@@ -5,6 +5,7 @@ import { WsStatusIndicator } from "@lib/socket";
 import { ThemeToggle } from "@ui/theme";
 import { useState } from "react";
 import {
+  CopyCorePubkey,
   Docs,
   KeyboardShortcuts,
   MobileDropdown,
@@ -44,6 +45,7 @@ export const Topbar = () => {
             <Version />
           </div>
           <WsStatusIndicator />
+          <CopyCorePubkey />
           <KeyboardShortcuts />
           <TopbarAlerts />
           <TopbarUpdates />

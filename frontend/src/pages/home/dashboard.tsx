@@ -4,7 +4,7 @@ import { ResourceComponents } from "@components/resources";
 import { ResourceLink, ResourceNameSimple } from "@components/resources/common";
 import { ServerStatsMini } from "@components/resources/server";
 import { TagsWithBadge } from "@components/tags";
-import { CopyCorePubkey, StatusBadge, TemplateMarker } from "@components/util";
+import { StatusBadge, TemplateMarker } from "@components/util";
 import { useDashboardPreferences } from "@lib/dashboard-preferences";
 import { Button } from "@ui/button";
 import { Eye, EyeOff } from "lucide-react";
@@ -42,7 +42,6 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <ShowServerStats />
             <ExportButton />
-            <CopyCorePubkey />
           </div>
         }
       >

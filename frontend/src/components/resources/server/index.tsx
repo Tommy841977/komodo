@@ -13,6 +13,7 @@ import {
   Square,
   AlertCircle,
   CheckCircle2,
+  KeyRound,
 } from "lucide-react";
 import { Section } from "@components/layouts";
 import { Prune } from "./actions";
@@ -24,7 +25,12 @@ import { ServerConfig } from "./config";
 import { DeploymentTable } from "../deployment/table";
 import { ServerTable } from "./table";
 import { DeleteResource, NewResource, ResourcePageHeader } from "../common";
-import { ActionWithDialog, ConfirmButton, StatusBadge } from "@components/util";
+import {
+  ActionWithDialog,
+  ConfirmButton,
+  CopyButton,
+  StatusBadge,
+} from "@components/util";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/tabs";
 import { Card, CardHeader, CardTitle } from "@ui/card";
 import { RepoTable } from "../repo/table";
@@ -38,6 +44,7 @@ import { GroupActions } from "@components/group-actions";
 import { ServerTerminals } from "@components/terminal/server";
 import { usePermissions } from "@lib/hooks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ui/tooltip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ui/hover-card";
 
 export const useServer = (id?: string) =>
   useRead("ListServers", {}, { refetchInterval: 10_000 }).data?.find(
@@ -393,6 +400,33 @@ export const ServerComponents: RequiredResourceComponents = {
   Status: {},
 
   Info: {
+    Pubkey: ({ id }) => {
+      const isServerAvailable = useIsServerAvailable(id);
+      const public_key = useRead(
+        "GetSystemInformation",
+        { server: id },
+        {
+          enabled: isServerAvailable,
+          refetchInterval: 5000,
+        }
+      ).data?.public_key;
+      return (
+        <HoverCard>
+          <HoverCardTrigger>
+            <CopyButton
+              label="Periphery Pubkey"
+              icon={<KeyRound className="w-4 h-4" />}
+              content={public_key}
+            />
+          </HoverCardTrigger>
+          <HoverCardContent align="start" sideOffset={10} className="w-fit">
+            <div className="w-fit max-w-[200px] text-sm overflow-hidden overflow-ellipsis">
+              Copy Periphery Pubkey
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      );
+    },
     Version: ServerVersion,
     Cpu: ({ id }) => {
       const isServerAvailable = useIsServerAvailable(id);

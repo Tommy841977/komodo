@@ -2123,10 +2123,10 @@ export type GetServerActionStateResponse = ServerActionState;
 /** Server configuration. */
 export interface ServerConfig {
     /**
-     * The http address of the periphery client.
-     * Default: http://localhost:8120
+     * The ws/s address of the periphery client.
+     * If unset, Server expects Periphery -> Core connection.
      */
-    address: string;
+    address?: string;
     /**
      * The address to use with links for containers on the server.
      * If empty, will use the 'address' for links.
@@ -2516,6 +2516,8 @@ export interface SystemInformation {
     terminals_disabled: boolean;
     /** Whether container exec is disabled on this Periphery server */
     container_exec_disabled: boolean;
+    /** The public key of the Periphery agent */
+    public_key: string;
 }
 export type GetSystemInformationResponse = SystemInformation;
 export interface SystemLoadAverage {

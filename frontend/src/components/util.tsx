@@ -24,7 +24,6 @@ import {
   EthernetPort,
   FolderGit,
   HardDrive,
-  KeyRound,
   LinkIcon,
   Loader2,
   Network,
@@ -93,7 +92,6 @@ import {
   SelectValue,
 } from "@ui/select";
 import { useServer } from "./resources/server";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ui/hover-card";
 
 export const ActionButton = forwardRef<
   HTMLButtonElement,
@@ -346,11 +344,19 @@ export const CopyButton = ({
   className,
   icon = <Copy className="w-4 h-4" />,
   label = "selection",
+  variant = "outline",
 }: {
   content: string | undefined;
   className?: string;
   icon?: ReactNode;
   label?: string;
+  variant?:
+    | "link"
+    | "default"
+    | "destructive"
+    | "outline"
+    | "secondary"
+    | "ghost";
 }) => {
   const { toast } = useToast();
   const [copied, set] = useState(false);
@@ -369,7 +375,7 @@ export const CopyButton = ({
     <Button
       className={cn("shrink-0", className)}
       size="icon"
-      variant="outline"
+      variant={variant}
       onClick={() => {
         if (!content) return;
         navigator.clipboard.writeText(content);
@@ -379,26 +385,6 @@ export const CopyButton = ({
     >
       {copied ? <Check className="w-4 h-4" /> : icon}
     </Button>
-  );
-};
-
-export const CopyCorePubkey = () => {
-  const res = useRead("GetCoreInfo", {}).data;
-  return (
-    <HoverCard>
-      <HoverCardTrigger>
-        <CopyButton
-          label="Core Pubkey"
-          icon={<KeyRound className="w-4 h-4" />}
-          content={res?.public_key}
-        />
-      </HoverCardTrigger>
-      <HoverCardContent align="end" sideOffset={10} className="w-fit">
-        <div className="w-fit max-w-[200px] text-sm overflow-hidden overflow-ellipsis">
-          Copy Core Pubkey
-        </div>
-      </HoverCardContent>
-    </HoverCard>
   );
 };
 

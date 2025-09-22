@@ -25,6 +25,8 @@ pub struct SystemInformation {
   pub terminals_disabled: bool,
   /// Whether container exec is disabled on this Periphery server
   pub container_exec_disabled: bool,
+  /// The public key of the Periphery agent
+  pub public_key: String,
 }
 
 /// System stats stored on the database.

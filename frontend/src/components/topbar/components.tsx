@@ -20,6 +20,7 @@ import {
   FileQuestion,
   FolderTree,
   Keyboard,
+  KeyRound,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -56,7 +57,7 @@ import {
   DialogTrigger,
 } from "@ui/dialog";
 import { Badge } from "@ui/badge";
-import { ConfirmButton } from "../util";
+import { ConfirmButton, CopyButton } from "../util";
 import { Types } from "komodo_client";
 import { UpdateDetails, UpdateUser } from "@components/updates/details";
 import { fmt_date, fmt_operation, fmt_version } from "@lib/formatting";
@@ -65,6 +66,7 @@ import { UsableResource } from "@types";
 import { AlertLevel } from "@components/alert";
 import { AlertDetailsDialogContent } from "@components/alert/details";
 import { Separator } from "@ui/separator";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@ui/hover-card";
 
 export const MobileDropdown = () => {
   const type = useResourceParamType();
@@ -633,5 +635,26 @@ const KeyboardShortcut = ({
         <div className="col-span-full bg-gray-600 h-[1px] opacity-40" />
       )}
     </>
+  );
+};
+
+export const CopyCorePubkey = () => {
+  const public_key = useRead("GetCoreInfo", {}).data?.public_key;
+  return (
+    <HoverCard>
+      <HoverCardTrigger className="hidden lg:block">
+        <CopyButton
+          variant="ghost"
+          label="Core Pubkey"
+          icon={<KeyRound className="w-4 h-4" />}
+          content={public_key}
+        />
+      </HoverCardTrigger>
+      <HoverCardContent sideOffset={4} className="w-fit">
+        <div className="w-fit max-w-[200px] text-sm overflow-hidden overflow-ellipsis">
+          Copy Core Pubkey
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 };

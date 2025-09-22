@@ -52,7 +52,8 @@ pub enum Command {
     unsanitized: bool,
   },
 
-  /// Public-Private key utilities
+  /// Public-Private key utilities. (alias: `k`)
+  #[clap(alias = "k")]
   Key {
     #[command(subcommand)]
     command: key::KeyCommand,

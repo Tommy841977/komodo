@@ -8,7 +8,7 @@ use komodo_client::entities::stats::{
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::sync::RwLock;
 
-use crate::config::periphery_config;
+use crate::config::{periphery_config, periphery_public_key};
 
 pub fn stats_client() -> &'static RwLock<StatsClient> {
   static STATS_CLIENT: OnceLock<RwLock<StatsClient>> =
@@ -216,5 +216,6 @@ fn get_system_information(
       .unwrap_or_default(),
     terminals_disabled: config.disable_terminals,
     container_exec_disabled: config.disable_container_exec,
+    public_key: periphery_public_key().clone(),
   }
 }
