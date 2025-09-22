@@ -7,7 +7,7 @@ import { TagsWithBadge } from "@components/tags";
 import { StatusBadge, TemplateMarker } from "@components/util";
 import { useDashboardPreferences } from "@lib/dashboard-preferences";
 import { Button } from "@ui/button";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Settings } from "lucide-react";
 import {
   action_state_intention,
   build_state_intention,
@@ -246,10 +246,17 @@ const ActiveResources = () => {
     useRead("ListActions", {}).data?.filter(
       (action) => action.info.state === Types.ActionState.Running
     ) ?? [];
+  const global_auto_updates =
+    useRead("ListUpdates", {
+      query: {
+        operation: Types.Operation.GlobalAutoUpdate,
+        status: Types.UpdateStatus.InProgress,
+      },
+    }).data?.updates ?? [];
 
   const resources = [
-    ...(builds ?? []).map((build) => ({
-      type: "Build" as UsableResource,
+    ...builds.map((build) => ({
+      type: "Build" as Types.ResourceTarget["type"],
       id: build.id,
       state: (
         <StatusBadge
@@ -258,8 +265,8 @@ const ActiveResources = () => {
         />
       ),
     })),
-    ...(repos ?? []).map((repo) => ({
-      type: "Repo" as UsableResource,
+    ...repos.map((repo) => ({
+      type: "Repo" as Types.ResourceTarget["type"],
       id: repo.id,
       state: (
         <StatusBadge
@@ -268,8 +275,8 @@ const ActiveResources = () => {
         />
       ),
     })),
-    ...(procedures ?? []).map((procedure) => ({
-      type: "Procedure" as UsableResource,
+    ...procedures.map((procedure) => ({
+      type: "Procedure" as Types.ResourceTarget["type"],
       id: procedure.id,
       state: (
         <StatusBadge
@@ -278,13 +285,23 @@ const ActiveResources = () => {
         />
       ),
     })),
-    ...(actions ?? []).map((action) => ({
-      type: "Action" as UsableResource,
+    ...actions.map((action) => ({
+      type: "Action" as Types.ResourceTarget["type"],
       id: action.id,
       state: (
         <StatusBadge
           text={action.info.state}
           intent={action_state_intention(action.info.state)}
+        />
+      ),
+    })),
+    ...global_auto_updates.map((update) => ({
+      type: "System" as Types.ResourceTarget["type"],
+      id: update.id,
+      state: (
+        <StatusBadge
+          text={Types.ActionState.Running}
+          intent={action_state_intention(Types.ActionState.Running)}
         />
       ),
     })),
@@ -309,9 +326,15 @@ const ActiveResources = () => {
               header: ({ column }) => (
                 <SortableHeader column={column} title="Name" />
               ),
-              cell: ({ row }) => (
-                <ResourceLink type={row.original.type} id={row.original.id} />
-              ),
+              cell: ({ row }) =>
+                row.original.type === "System" ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Settings className="w-4 h-4" />
+                    System
+                  </div>
+                ) : (
+                  <ResourceLink type={row.original.type} id={row.original.id} />
+                ),
             },
             {
               accessorKey: "type",
