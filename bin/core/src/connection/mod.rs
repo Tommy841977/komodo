@@ -130,7 +130,11 @@ impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
     if let Some(expected) = self.expected
       && public_key != expected
     {
-      Err(anyhow!("Core failed to validate Periphery public key"))
+      Err(
+        anyhow!("Invalid public key '{public_key}'")
+          .context("Ensure public key matches configured Periphery Public Key")
+          .context("Core failed to validate Periphery public key"),
+      )
     } else {
       Ok(())
     }

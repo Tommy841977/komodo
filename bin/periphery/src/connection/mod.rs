@@ -158,7 +158,11 @@ impl PublicKeyValidator for CorePublicKeyValidator {
       periphery_config().core_public_key.as_ref()
       && &public_key != expected_public_key
     {
-      Err(anyhow!("Periphery failed to validate Core public key"))
+      Err(
+        anyhow!("Invalid public key '{public_key}'")
+          .context("Ensure public key matches 'core_public_key' in periphery config (PERIPHERY_CORE_PUBLIC_KEY)")
+          .context("Periphery failed to validate Core public key"),
+      )
     } else {
       Ok(())
     }
