@@ -23,9 +23,14 @@ pub async fn handle(command: &KeyCommand) -> anyhow::Result<()> {
             keys.private_key.red().bold()
           );
         }
-        KeyOutputFormat::Json => {
-          print_json(&keys.private_key, &keys.public_key)?
-        }
+        KeyOutputFormat::Json => print_json(
+          &format!("base64:{}", keys.private_key),
+          &keys.public_key,
+        )?,
+        KeyOutputFormat::JsonPretty => print_json_pretty(
+          &format!("base64:{}", keys.private_key),
+          &keys.public_key,
+        )?,
       }
 
       Ok(())
@@ -43,6 +48,9 @@ pub async fn handle(command: &KeyCommand) -> anyhow::Result<()> {
         KeyOutputFormat::Json => {
           print_json(private_key, &public_key)?
         }
+        KeyOutputFormat::JsonPretty => {
+          print_json_pretty(private_key, &public_key)?
+        }
       }
       Ok(())
     }
@@ -50,6 +58,19 @@ pub async fn handle(command: &KeyCommand) -> anyhow::Result<()> {
 }
 
 fn print_json(
+  private_key: &str,
+  public_key: &str,
+) -> anyhow::Result<()> {
+  let json = serde_json::to_string(&KeyPair {
+    private_key,
+    public_key,
+  })
+  .context("Failed to serialize JSON")?;
+  println!("{json}");
+  Ok(())
+}
+
+fn print_json_pretty(
   private_key: &str,
   public_key: &str,
 ) -> anyhow::Result<()> {

@@ -33,9 +33,12 @@ pub enum KeyOutputFormat {
   #[default]
   #[clap(alias = "s")]
   Standard,
-  /// Json output format. (alias: `j`)
+  /// Json (single line) output format. (alias: `j`)
   #[clap(alias = "j")]
   Json,
+  /// Json "pretty" (multi line) output format. (alias: `jp`)
+  #[clap(alias = "jp")]
+  JsonPretty,
 }
 
 #[derive(Serialize)]
