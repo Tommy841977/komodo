@@ -96,15 +96,8 @@ impl PeripheryClient {
         format!("No connection found for server {}", self.server_id)
       })?;
 
-    if !connection.connected() {
-      if let Some(e) = connection.error().await {
-        return Err(serror_into_anyhow_error(e));
-      }
-      return Err(anyhow!(
-        "Server {} is not currently connected",
-        self.server_id
-      ));
-    }
+    // Polls connected 3 times before bailing
+    connection.bail_if_not_connected().await?;
 
     let id = Uuid::new_v4();
     let (response_sender, mut response_receiever) =
@@ -197,6 +190,8 @@ pub fn periphery_connections() -> &'static PeripheryConnections {
   CONNECTIONS.get_or_init(Default::default)
 }
 
+pub const CONNECTION_RETRY_SECONDS: u64 = 5;
+
 #[derive(Debug)]
 pub struct PeripheryConnection {
   // Inbound connections have this as None
@@ -238,6 +233,23 @@ impl PeripheryConnection {
 
   pub fn connected(&self) -> bool {
     self.connected.load(atomic::Ordering::Relaxed)
+  }
+
+  /// Polls connected 3 times (1s in between) before bailing.
+  pub async fn bail_if_not_connected(&self) -> anyhow::Result<()> {
+    for i in 0..3 {
+      if self.connected() {
+        return Ok(());
+      }
+      if i < 2 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+      }
+    }
+    if let Some(e) = self.error().await {
+      Err(serror_into_anyhow_error(e))
+    } else {
+      Err(anyhow!("Server is not currently connected"))
+    }
   }
 
   pub async fn error(&self) -> Option<serror::Serror> {

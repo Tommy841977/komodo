@@ -8,7 +8,9 @@ use crate::{
 use anyhow::Context;
 use axum::http::HeaderValue;
 use komodo_client::entities::{optional_string, server::Server};
-use periphery_client::periphery_connections;
+use periphery_client::{
+  CONNECTION_RETRY_SECONDS, periphery_connections,
+};
 use rustls::{ClientConfig, client::danger::ServerCertVerifier};
 use tokio_tungstenite::Connector;
 use tracing::{info, warn};
@@ -53,10 +55,8 @@ pub async fn manage_client_connections(servers: &[Server]) {
   }
 
   // Apply latest connection specs
-  for (
-    server_id,
-    (address, private_key, expected_public_key),
-  ) in specs
+  for (server_id, (address, private_key, expected_public_key)) in
+    specs
   {
     let address = if address.is_empty() {
       address.to_string()
@@ -156,7 +156,10 @@ pub async fn spawn_client_connection(
         Ok(res) => res,
         Err(e) => {
           connection.set_error(e).await;
-          tokio::time::sleep(Duration::from_secs(5)).await;
+          tokio::time::sleep(Duration::from_secs(
+            CONNECTION_RETRY_SECONDS,
+          ))
+          .await;
           continue;
         }
       };
@@ -180,7 +183,10 @@ pub async fn spawn_client_connection(
           break;
         }
         connection.set_error(e).await;
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(
+          CONNECTION_RETRY_SECONDS,
+        ))
+        .await;
         continue;
       };
     }

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use axum::http::HeaderValue;
+use periphery_client::CONNECTION_RETRY_SECONDS;
 use transport::{
   auth::{ClientLoginFlow, ConnectionIdentifiers},
   fix_ws_address,
@@ -54,7 +55,10 @@ pub async fn handler(
             // set to false to see login error after reconnect.
             already_logged_login_error = false;
           }
-          tokio::time::sleep(Duration::from_secs(5)).await;
+          tokio::time::sleep(Duration::from_secs(
+            CONNECTION_RETRY_SECONDS,
+          ))
+          .await;
           continue;
         }
       };
@@ -83,7 +87,10 @@ pub async fn handler(
         warn!("Failed to login | {e:#}");
         already_logged_login_error = true;
       }
-      tokio::time::sleep(Duration::from_secs(5)).await;
+      tokio::time::sleep(Duration::from_secs(
+        CONNECTION_RETRY_SECONDS,
+      ))
+      .await;
       continue;
     };
   }
