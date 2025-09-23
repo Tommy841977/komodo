@@ -2,7 +2,7 @@ use crate::{
   auth::{auth_api_key_check_enabled, auth_jwt_check_enabled},
   helpers::query::get_user,
   periphery::PeripheryClient,
-  state::all_server_channels,
+  state::periphery_connections,
 };
 use anyhow::anyhow;
 use axum::{
@@ -294,9 +294,9 @@ async fn forward_ws_channel(
       "Failed to disconnect Periphery terminal forwarding | {e:#}",
     )
   }
-  if let Some(response_channels) =
-    all_server_channels().get(&periphery.server_id).await
+  if let Some(connection) =
+    periphery_connections().get(&periphery.server_id).await
   {
-    response_channels.remove(&periphery_connection_id).await;
+    connection.channels.remove(&periphery_connection_id).await;
   }
 }

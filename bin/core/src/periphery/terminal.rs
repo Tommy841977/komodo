@@ -17,8 +17,7 @@ use transport::bytes::data_from_transport_bytes;
 use uuid::Uuid;
 
 use crate::{
-  periphery::PeripheryClient,
-  state::{all_server_channels, periphery_connections},
+  periphery::PeripheryClient, state::periphery_connections,
 };
 
 impl PeripheryClient {
@@ -42,13 +41,10 @@ impl PeripheryClient {
       .await
       .context("Failed to create terminal connection")?;
 
-    let response_channels = all_server_channels()
-      .get_or_insert_default(&self.server_id)
-      .await;
-    let (response_sender, response_receiever) = channel(1000);
-    response_channels.insert(id, response_sender).await;
+    let (sender, receiever) = channel(1024);
+    connection.channels.insert(id, sender).await;
 
-    Ok((id, connection.write_sender.clone(), response_receiever))
+    Ok((id, connection.sender.clone(), receiever))
   }
 
   pub async fn connect_container_exec(
@@ -72,13 +68,10 @@ impl PeripheryClient {
       .await
       .context("Failed to create container exec connection")?;
 
-    let response_channels = all_server_channels()
-      .get_or_insert_default(&self.server_id)
-      .await;
-    let (response_sender, response_receiever) = channel(1000);
-    response_channels.insert(id, response_sender).await;
+    let (sender, receiever) = channel(1000);
+    connection.channels.insert(id, sender).await;
 
-    Ok((id, connection.write_sender.clone(), response_receiever))
+    Ok((id, connection.sender.clone(), receiever))
   }
 
   /// Executes command on specified terminal,
@@ -106,23 +99,26 @@ impl PeripheryClient {
       "sending request | type: ExecuteTerminal | terminal name: {terminal} | command: {command}",
     );
 
+    let connection = periphery_connections()
+      .get(&self.server_id)
+      .await
+      .with_context(|| {
+        format!("No connection found for server {}", self.server_id)
+      })?;
+
     let id = self
       .request(ExecuteTerminal { terminal, command })
       .await
       .context("Failed to create execute terminal connection")?;
 
-    let response_channels = all_server_channels()
-      .get_or_insert_default(&self.server_id)
-      .await;
+    let (sender, receiver) = channel(1000);
 
-    let (response_sender, response_receiever) = channel(1000);
-
-    response_channels.insert(id, response_sender).await;
+    connection.channels.insert(id, sender).await;
 
     Ok(ReceiverStream {
       id,
-      channels: response_channels,
-      receiver: response_receiever,
+      receiver,
+      channels: connection.channels.clone(),
     })
   }
 
@@ -150,6 +146,13 @@ impl PeripheryClient {
       "sending request | type: ExecuteContainerExec | container: {container} | shell: {shell} | command: {command}",
     );
 
+    let connection = periphery_connections()
+      .get(&self.server_id)
+      .await
+      .with_context(|| {
+        format!("No connection found for server {}", self.server_id)
+      })?;
+
     let id = self
       .request(ExecuteContainerExec {
         container,
@@ -159,18 +162,14 @@ impl PeripheryClient {
       .await
       .context("Failed to create execute terminal connection")?;
 
-    let response_channels = all_server_channels()
-      .get_or_insert_default(&self.server_id)
-      .await;
+    let (sender, receiver) = channel(1000);
 
-    let (response_sender, response_receiever) = channel(1000);
-
-    response_channels.insert(id, response_sender).await;
+    connection.channels.insert(id, sender).await;
 
     Ok(ReceiverStream {
       id,
-      channels: response_channels,
-      receiver: response_receiever,
+      receiver,
+      channels: connection.channels.clone(),
     })
   }
 }

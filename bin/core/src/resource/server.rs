@@ -18,7 +18,7 @@ use crate::{
   helpers::query::get_system_info,
   monitor::update_cache_for_server,
   state::{
-    action_states, all_server_channels, db_client,
+    action_states, db_client, periphery_connections,
     server_status_cache,
   },
 };
@@ -224,7 +224,7 @@ impl super::KomodoResource for Server {
   ) -> anyhow::Result<()> {
     tokio::join!(
       server_status_cache().remove(&resource.id),
-      all_server_channels().remove(&resource.id),
+      periphery_connections().remove(&resource.id),
     );
     Ok(())
   }

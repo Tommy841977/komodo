@@ -47,11 +47,9 @@ fn ws_receiver() -> &'static Mutex<BufferedReceiver<Bytes>> {
     .expect("response_receiver accessed before initialized")
 }
 
-const RESPONSE_BUFFER_MAX_LEN: usize = 1_024;
-
 /// Must call in startup sequence
 pub fn init_response_channel() {
-  let (sender, receiver) = buffered_channel(RESPONSE_BUFFER_MAX_LEN);
+  let (sender, receiver) = buffered_channel();
   WS_SENDER
     .set(sender)
     .expect("response_sender initialized more than once");

@@ -2,11 +2,12 @@ use std::ops::Deref;
 
 use tokio::sync::mpsc;
 
+const RESPONSE_BUFFER_MAX_LEN: usize = 1_024;
+
 /// Create a buffered channel
-pub fn buffered_channel<T: Deref>(
-  buffer: usize,
-) -> (mpsc::Sender<T>, BufferedReceiver<T>) {
-  let (sender, receiver) = mpsc::channel(buffer);
+pub fn buffered_channel<T: Deref>()
+-> (mpsc::Sender<T>, BufferedReceiver<T>) {
+  let (sender, receiver) = mpsc::channel(RESPONSE_BUFFER_MAX_LEN);
   (sender, BufferedReceiver::new(receiver))
 }
 

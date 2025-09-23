@@ -13,17 +13,11 @@ use transport::{
   websocket::tungstenite::TungsteniteWebsocket,
 };
 
-use crate::{
-  config::core_config,
-  connection::MessageHandler,
-  periphery::PeripheryConnection,
-  state::{all_server_channels, periphery_connections},
-};
+use crate::{config::core_config, state::periphery_connections};
 
 /// Managed connections to exactly those specified by specs (ServerId -> Address)
 pub async fn manage_client_connections(servers: &[Server]) {
   let periphery_connections = periphery_connections();
-  let periphery_channels = all_server_channels();
 
   let specs = servers
     .iter()
@@ -41,16 +35,12 @@ pub async fn manage_client_connections(servers: &[Server]) {
     .collect::<HashMap<_, _>>();
 
   // Clear non specced / enabled server connections
-  for (server_id, connection) in
-    periphery_connections.get_entries().await
-  {
+  for server_id in periphery_connections.get_keys().await {
     if !specs.contains_key(&server_id) {
       info!(
-        "Specs do not container {server_id}, cancelling connection"
+        "Specs do not contain {server_id}, cancelling connection"
       );
-      connection.cancel();
       periphery_connections.remove(&server_id).await;
-      periphery_channels.remove(&server_id).await;
     }
   }
 
@@ -122,17 +112,9 @@ pub async fn spawn_client_connection(
     host.push_str(&port.to_string());
   }
 
-  let handler = MessageHandler::new(&server_id).await;
-
-  let (connection, mut write_receiver) =
-    PeripheryConnection::new(address.clone().into());
-
-  if let Some(existing_connection) = periphery_connections()
-    .insert(server_id, connection.clone())
-    .await
-  {
-    existing_connection.cancel();
-  }
+  let (connection, mut write_receiver) = periphery_connections()
+    .insert(server_id, address.clone().into())
+    .await;
 
   let config = core_config();
   let private_key = if private_key.is_empty() {
@@ -175,7 +157,6 @@ pub async fn spawn_client_connection(
         expected_public_key: expected_public_key.as_deref(),
         write_receiver: &mut write_receiver,
         connection: &connection,
-        handler: &handler,
       };
 
       if let Err(e) = handler.handle::<ClientLoginFlow>().await {

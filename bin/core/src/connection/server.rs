@@ -12,11 +12,7 @@ use transport::{
   websocket::axum::AxumWebsocket,
 };
 
-use crate::{
-  config::core_config,
-  connection::{MessageHandler, PeripheryConnection},
-  state::periphery_connections,
-};
+use crate::{config::core_config, state::periphery_connections};
 
 pub async fn handler(
   Query(PeripheryConnectionQuery { server: _server }): Query<
@@ -58,23 +54,17 @@ pub async fn handler(
   }
 
   let expected_public_key = if server.config.public_key.is_empty() {
-    core_config().periphery_public_key.clone().context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
+    core_config()
+      .periphery_public_key
+      .clone()
+      .context("Must either configure Server 'Periphery Public Key' or set KOMODO_PERIPHERY_PUBLIC_KEY")?
   } else {
     server.config.public_key
   };
 
-  let handler = MessageHandler::new(&server.id).await;
-
-  let (connection, mut write_receiver) =
-    PeripheryConnection::new(None);
-
-  if let Some(existing_connection) = connections
-    .insert(server.id.clone(), connection.clone())
-    .await
-  {
-    // This case shouldn't be reached from above but doesn't hurt to handle
-    existing_connection.cancel();
-  }
+  let (connection, mut write_receiver) = periphery_connections()
+    .insert(server.id.clone(), None)
+    .await;
 
   Ok(ws.on_upgrade(|socket| async move {
     let query = format!("server={}", urlencoding::encode(&_server));
@@ -89,7 +79,6 @@ pub async fn handler(
       expected_public_key: Some(&expected_public_key),
       write_receiver: &mut write_receiver,
       connection: &connection,
-      handler: &handler,
     };
 
     if let Err(e) = handler.handle::<ServerLoginFlow>().await {

@@ -1,25 +1,16 @@
-use std::sync::Arc;
-
 use anyhow::anyhow;
 use bytes::Bytes;
-use cache::CloneCache;
-use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
 use transport::{
   auth::{ConnectionIdentifiers, LoginFlow, PublicKeyValidator},
-  bytes::id_from_transport_bytes,
   channel::BufferedReceiver,
   websocket::{
     Websocket, WebsocketMessage, WebsocketReceiver as _,
     WebsocketSender as _,
   },
 };
-use uuid::Uuid;
 
-use crate::{
-  periphery::PeripheryConnection, state::all_server_channels,
-};
+use crate::periphery::PeripheryConnection;
 
 pub mod client;
 pub mod server;
@@ -31,7 +22,7 @@ pub struct WebsocketHandler<'a, W> {
   pub expected_public_key: Option<&'a str>,
   pub write_receiver: &'a mut BufferedReceiver<Bytes>,
   pub connection: &'a PeripheryConnection,
-  pub handler: &'a MessageHandler,
+  // pub handler: &'a MessageHandler,
 }
 
 impl<W: Websocket> WebsocketHandler<'_, W> {
@@ -43,7 +34,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
       expected_public_key,
       write_receiver,
       connection,
-      handler,
+      // handler,
     } = self;
 
     L::login(
@@ -100,7 +91,7 @@ impl<W: Websocket> WebsocketHandler<'_, W> {
 
         match next {
           Ok(WebsocketMessage::Binary(bytes)) => {
-            handler.handle_incoming_bytes(bytes).await
+            connection.handle_incoming_bytes(bytes).await
           }
           Ok(WebsocketMessage::Close(_))
           | Ok(WebsocketMessage::Closed) => {
@@ -140,40 +131,6 @@ impl PublicKeyValidator for PeripheryPublicKeyValidator<'_> {
       )
     } else {
       Ok(())
-    }
-  }
-}
-
-pub struct MessageHandler {
-  channels: Arc<CloneCache<Uuid, Sender<Bytes>>>,
-}
-
-impl MessageHandler {
-  pub async fn new(server_id: &String) -> MessageHandler {
-    MessageHandler {
-      channels: all_server_channels()
-        .get_or_insert_default(server_id)
-        .await,
-    }
-  }
-
-  async fn handle_incoming_bytes(&self, bytes: Bytes) {
-    let id = match id_from_transport_bytes(&bytes) {
-      Ok(res) => res,
-      Err(e) => {
-        // TODO: handle better
-        warn!("Failed to read id | {e:#}");
-        return;
-      }
-    };
-    let Some(channel) = self.channels.get(&id).await else {
-      // TODO: handle better
-      warn!("Failed to send response | No response channel found");
-      return;
-    };
-    if let Err(e) = channel.send(bytes).await {
-      // TODO: handle better
-      warn!("Failed to send response | Channel failure | {e:#}");
     }
   }
 }

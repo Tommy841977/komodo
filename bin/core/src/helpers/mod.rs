@@ -191,7 +191,7 @@ pub async fn periphery_client(
   if !server.config.enabled {
     return Err(anyhow!("server not enabled"));
   }
-  Ok(PeripheryClient::new(server.id.clone()).await)
+  PeripheryClient::new(server.id.clone()).await
 }
 
 #[instrument]
