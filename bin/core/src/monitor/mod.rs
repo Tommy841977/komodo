@@ -199,9 +199,6 @@ pub async fn update_cache_for_server(server: &Server, force: bool) {
   }
 
   let Ok(periphery) = periphery_client(server).await else {
-    error!(
-      "Somehow periphery not ok to create. Should not be reached."
-    );
     return;
   };
 

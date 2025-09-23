@@ -62,6 +62,7 @@ pub struct ConnectContainerExec {
 
 //
 
+/// Used to disconnect both Terminals and Container Exec sessions.
 #[derive(Serialize, Deserialize, Debug, Clone, Resolve)]
 #[response(NoData)]
 #[error(serror::Error)]

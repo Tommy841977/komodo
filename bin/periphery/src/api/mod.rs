@@ -149,6 +149,7 @@ pub enum PeripheryRequest {
   ConnectContainerExec(ConnectContainerExec),
   DisconnectTerminal(DisconnectTerminal),
   ExecuteTerminal(ExecuteTerminal),
+  ExecuteContainerExec(ExecuteContainerExec),
 }
 
 //
