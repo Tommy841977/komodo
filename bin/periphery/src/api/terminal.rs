@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, anyhow};
 use axum::http::StatusCode;
@@ -211,6 +211,9 @@ impl Resolve<super::Args> for ExecuteContainerExec {
     )
     .await
     .context("Failed to create terminal for container exec")?;
+
+    // Wait a bit for terminal to initialize
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     let stdout =
       setup_execute_command_on_terminal(&terminal, &command).await?;
